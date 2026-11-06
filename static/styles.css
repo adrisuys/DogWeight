@@ -264,6 +264,9 @@ textarea.input { resize: vertical; line-height: 1.45; }
 }
 .form-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .form-error { color: var(--bad); font-size: 13px; }
+/* Collapsed while there is nothing to say, so the dialog isn't padded
+   out by a message that hasn't happened. */
+.form-error:empty { display: none; }
 
 /* --- layout ------------------------------------------------------------- */
 
@@ -450,6 +453,65 @@ tbody tr:hover { background: var(--hover-wash); }
   border-radius: 999px;
   background: var(--surface-2);
   color: var(--text-secondary);
+}
+
+/* --- modal sheet -------------------------------------------------------- */
+/* The weighing form. A centred card on a desktop; a bottom sheet on a phone,
+   where the thumb is and where the keyboard pushes everything up anyway. */
+
+.sheet {
+  width: min(560px, calc(100vw - 24px));
+  max-height: calc(100dvh - 48px);
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-1);
+  color: var(--text-primary);
+  box-shadow: 0 18px 48px rgba(16, 21, 26, 0.34);
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+.sheet::backdrop { background: rgba(16, 21, 26, 0.55); }
+
+/* The dialog is display:none until opened; our [hidden] rule and the flex
+   layout below would otherwise fight the user agent over that. */
+.sheet:not([open]) { display: none; }
+.sheet[open] { display: flex; flex-direction: column; gap: 14px; padding: 16px 18px 18px; }
+
+.sheet-head { display: flex; align-items: center; gap: 10px; }
+.sheet-head h2 { margin-right: auto; }
+
+.sheet-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  align-items: center;
+  flex-wrap: wrap;
+}
+@media (max-width: 680px) {
+  /* A thumb reaches the bottom of the sheet, so the two buttons share
+     the width rather than hiding in a corner. */
+  .sheet-actions { flex-direction: row-reverse; }
+  .sheet-actions .btn { flex: 1; min-height: 42px; }
+}
+
+/* The form inside a sheet is the whole point of the sheet, so it gets the
+   room: two columns on a desktop, one on a phone. */
+.sheet .form-grid { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
+
+@media (max-width: 680px) {
+  .sheet {
+    width: 100vw;
+    max-width: 100vw;
+    max-height: 88dvh;
+    margin: 0 0 auto;
+    position: fixed;
+    inset: auto 0 0 0;
+    border-radius: var(--radius) var(--radius) 0 0;
+    border-bottom: 0;
+  }
+  .sheet[open] { padding-bottom: calc(18px + env(safe-area-inset-bottom)); }
+  .sheet .form-grid { grid-template-columns: 1fr; }
 }
 
 /* --- toast -------------------------------------------------------------- */

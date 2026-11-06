@@ -450,7 +450,7 @@
         el('div', { class: 'form-actions' },
           el('button', {
             class: 'btn btn-primary', type: 'button', text: 'Première pesée',
-            onclick: () => { location.hash = '#/pesees'; },
+            onclick: () => openWeighDialog(null),
           }),
         ),
       ));
@@ -550,10 +550,48 @@
     return select;
   }
 
+  /** The weighing form, as a modal. Lives in a dialog rather than on the
+   *  Pesées screen because it is used once every three weeks and was taking
+   *  half the screen for the other twenty-one days. `<dialog>` is used for
+   *  the real thing it gives: Escape, focus trapping and inertness for free,
+   *  none of which a div pretending to be a modal gets right. */
+  let weighDialog = null;
+
+  function openWeighDialog(entry) {
+    weightForm.editing = entry || null;
+    if (!weighDialog) {
+      weighDialog = el('dialog', { class: 'sheet', 'aria-labelledby': 'weigh-title' });
+      // Clicking the backdrop closes it. The check is on the target being the
+      // dialog itself: the form inside is a child, and without this a click
+      // that lands between two fields would dismiss a half-typed entry.
+      weighDialog.addEventListener('click', (event) => {
+        if (event.target === weighDialog) weighDialog.close();
+      });
+      weighDialog.addEventListener('close', () => { weightForm.editing = null; });
+      document.body.appendChild(weighDialog);
+    }
+    clear(weighDialog);
+    weighDialog.append(
+      el('div', { class: 'sheet-head' },
+        el('h2', { id: 'weigh-title', text: entry ? 'Corriger la pesée' : 'Nouvelle pesée' }),
+        el('button', {
+          class: 'btn btn-icon', type: 'button', 'aria-label': 'Fermer',
+          onclick: () => weighDialog.close(),
+        }, glyph([['path', { d: 'M4 4 L12 12 M12 4 L4 12' }]], 15)),
+      ),
+      weightEditor(),
+    );
+    weighDialog.showModal();
+    // showModal focuses the first focusable thing, which is the date — and
+    // the date is already right. The weight is what you came to type.
+    const field = $('w-weight');
+    if (field) { field.focus(); field.select(); }
+  }
+
   function weightEditor() {
     const editing = weightForm.editing;
     const entry = editing || {};
-    const error = el('p', { class: 'form-error' });
+    const error = el('p', { class: 'form-error field-wide' });
 
     const form = el('form', { class: 'form-grid', autocomplete: 'off' },
       el('div', { class: 'field' },
@@ -583,17 +621,20 @@
           placeholder: 'friandises, sortie annulée, retour de vacances…',
           value: entry.notes || '' }),
       ),
-      el('div', { class: 'field field-wide form-actions' },
+      el('p', { class: 'field-wide card-sub',
+        text: 'Une seule pesée par jour : repeser le même jour corrige la ligne.' }),
+      error,
+      // Cancel then confirm, left to right — the platform order everywhere
+      // this app runs. Not `.form-actions`: that class sits on a `.field`,
+      // which is a column, so the buttons would stack.
+      el('div', { class: 'field-wide sheet-actions' },
+        el('button', {
+          class: 'btn', type: 'button', text: 'Annuler',
+          onclick: () => weighDialog.close(),
+        }),
         el('button', { class: 'btn btn-primary', type: 'submit',
           text: editing ? 'Enregistrer' : 'Ajouter la pesée' }),
-        editing && el('button', {
-          class: 'btn', type: 'button', text: 'Annuler',
-          onclick: () => { weightForm.editing = null; renderWeights(); },
-        }),
-        el('span', { class: 'card-sub',
-          text: 'Une seule pesée par jour : repeser le même jour corrige la ligne.' }),
       ),
-      error,
     );
 
     form.addEventListener('submit', async (event) => {
@@ -614,7 +655,7 @@
         } else {
           await api('/api/weights', { method: 'POST', body: JSON.stringify(payload) });
         }
-        weightForm.editing = null;
+        weighDialog.close();
         toast('Pesée enregistrée — les conseils arrivent.');
         pollAdvice();
         await refresh();
@@ -632,13 +673,6 @@
     clear(view);
     const data = state.dashboard;
     if (!data) return;
-
-    view.appendChild(el('div', { class: 'card' },
-      el('div', { class: 'card-head' },
-        el('h2', { text: weightForm.editing ? 'Corriger une pesée' : 'Nouvelle pesée' }),
-      ),
-      weightEditor(),
-    ));
 
     const entries = data.entries.slice().reverse();   // newest first, to read
     const table = el('table');
@@ -666,11 +700,7 @@
         el('td', {}, el('div', { class: 'row-tools' },
           el('button', {
             class: 'btn btn-sm', type: 'button', text: 'Modifier',
-            onclick: () => {
-              weightForm.editing = entry;
-              renderWeights();
-              window.scrollTo({ top: 0, behavior: 'smooth' });
-            },
+            onclick: () => openWeighDialog(entry),
           }),
           el('button', {
             class: 'btn btn-sm btn-danger', type: 'button', text: 'Supprimer',
@@ -678,9 +708,6 @@
               if (!confirm(`Supprimer la pesée du ${longDate(entry.date)} ?`)) return;
               try {
                 await api(`/api/weights/${entry.id}`, { method: 'DELETE' });
-                if (weightForm.editing && weightForm.editing.id === entry.id) {
-                  weightForm.editing = null;
-                }
                 toast('Pesée supprimée.');
                 await refresh();
               } catch (error) { toast(error.message); }
@@ -695,6 +722,10 @@
       el('div', { class: 'card-head' },
         el('h2', { text: 'Historique' }),
         el('span', { class: 'card-sub', text: `${data.entries.length} pesées` }),
+        el('button', {
+          class: 'btn btn-primary', type: 'button', text: 'Ajouter une pesée',
+          onclick: () => openWeighDialog(null),
+        }),
       ),
       entries.length
         ? el('div', { class: 'table-wrap' }, table)
@@ -1266,17 +1297,9 @@
   }
 
   window.addEventListener('hashchange', route);
-  $('new-btn').addEventListener('click', () => {
-    weightForm.editing = null;
-    const wasOnWeights = currentView() === 'weights';
-    location.hash = '#/pesees';
-    // Already on the screen: the hash doesn't change, so nothing re-renders.
-    if (wasOnWeights) renderWeights();
-    requestAnimationFrame(() => {
-      const field = $('w-weight');
-      if (field) field.focus();
-    });
-  });
+  // Weighing is the one thing you do from anywhere, so it no longer navigates
+  // — it opens over whatever screen you were on and leaves you there.
+  $('new-btn').addEventListener('click', () => openWeighDialog(null));
 
   buildNav();
   refresh().catch((error) => {
