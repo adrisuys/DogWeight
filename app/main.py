@@ -21,7 +21,7 @@ async def lifespan(_app: FastAPI):
     yield
 
 
-app = FastAPI(title="Poids du chien", docs_url="/api/docs", redoc_url=None, lifespan=lifespan)
+app = FastAPI(title="Carnet de santé du chien", docs_url="/api/docs", redoc_url=None, lifespan=lifespan)
 
 
 # --------------------------------------------------------------------------
@@ -40,6 +40,7 @@ class ProfileIn(BaseModel):
     activity: str = ""
     exercise: str = ""
     target_weight: float | str | None = None
+    microchip: str = ""
     notes: str = ""
 
 

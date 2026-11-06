@@ -12,7 +12,7 @@
      names are content hashes and can never mean anything else.
    ========================================================================== */
 
-const VERSION = 'dog-v3';
+const VERSION = 'dog-v5';
 const SHELL = `${VERSION}-shell`;
 const PHOTOS = `${VERSION}-photos`;
 
@@ -104,7 +104,7 @@ self.addEventListener('push', (event) => {
   // silent after being woken.
   try { payload = event.data ? event.data.json() : {}; } catch (_) { /* below */ }
 
-  const title = payload.title || 'Poids du chien';
+  const title = payload.title || 'Carnet de santé';
   event.waitUntil(self.registration.showNotification(title, {
     body: payload.body || '',
     tag: payload.tag || 'dog',

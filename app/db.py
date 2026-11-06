@@ -42,6 +42,7 @@ CREATE TABLE IF NOT EXISTS profile (
     neutered       INTEGER NOT NULL DEFAULT 0,
     activity       TEXT    NOT NULL DEFAULT '',   -- see config.ACTIVITY_LEVELS
     exercise       TEXT    NOT NULL DEFAULT '',   -- "3,2 km par jour + 2 sorties"
+    microchip      TEXT    NOT NULL DEFAULT '',   -- 15 digits, ISO 11784
     target_weight  REAL,                          -- kg; NULL until it is set
     notes          TEXT    NOT NULL DEFAULT '',   -- allergies, vet's advice
     updated_at     TEXT    NOT NULL
@@ -148,9 +149,21 @@ def cursor() -> Iterator[sqlite3.Connection]:
         conn.close()
 
 
+# Columns added after a database was already in use. CREATE TABLE IF NOT
+# EXISTS never touches a table that exists, so a database made before them
+# gets them here, once, with the same defaults a fresh one would have.
+_ADDED_COLUMNS: list[tuple[str, str, str]] = [
+    ("profile", "microchip", "TEXT NOT NULL DEFAULT ''"),
+]
+
+
 def init_db() -> None:
     with cursor() as conn:
         conn.executescript(SCHEMA)
+        for table, column, decl in _ADDED_COLUMNS:
+            have = {r["name"] for r in conn.execute(f"PRAGMA table_info({table})")}
+            if column not in have:
+                conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {decl}")
         # The profile row must exist before anything reads it, and it is the
         # one row in the database nobody ever creates on purpose.
         conn.execute(

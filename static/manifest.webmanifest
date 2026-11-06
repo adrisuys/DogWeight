@@ -1,7 +1,7 @@
 {
-  "name": "Poids du chien",
-  "short_name": "Poids",
-  "description": "Suivi du poids, des croquettes et de la ration",
+  "name": "Carnet de santé du chien",
+  "short_name": "Carnet",
+  "description": "Carnet de santé : poids, croquettes, ration, identification",
   "lang": "fr",
   "start_url": "/",
   "scope": "/",

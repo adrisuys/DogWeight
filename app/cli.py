@@ -304,7 +304,7 @@ def cmd_serve(args) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(prog="app.cli", description="Poids du chien")
+    parser = argparse.ArgumentParser(prog="app.cli", description="Carnet de santé du chien")
     sub = parser.add_subparsers(dest="command", required=True)
 
     sub.add_parser("status", help="ce que contient la base").set_defaults(func=cmd_status)

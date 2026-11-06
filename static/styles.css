@@ -205,6 +205,18 @@ a { color: var(--accent); }
   background: var(--surface-2);
 }
 
+/* An icon tab. Square rather than text-width, so the four sit evenly and a
+   fingertip gets a 38px target rather than whatever the word happened to be
+   wide. The icon itself is 19px; the rest is hit area. */
+.segmented button.tab {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 7px 14px;
+  min-width: 42px;
+}
+.segmented button.tab svg { display: block; }
+
 .input {
   font: inherit;
   font-size: 14px;
@@ -477,7 +489,7 @@ tbody tr:hover { background: var(--hover-wash); }
     justify-content: space-around;
     flex-wrap: nowrap;
   }
-  .views button { flex: 1; text-align: center; padding: 8px 4px; }
+  .views button.tab { flex: 1; padding: 9px 4px; min-width: 0; }
   body { padding-bottom: calc(var(--tabbar-h, 56px) + env(safe-area-inset-bottom)); }
   .tile-hero .tile-value { font-size: 26px; }
 }

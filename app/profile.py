@@ -14,8 +14,8 @@ from . import db
 from .config import ACTIVITY_LEVELS, SEXES
 from .errors import BadRequest
 
-FIELDS = ("name", "breed", "birth_date", "sex", "neutered",
-          "activity", "exercise", "target_weight", "notes")
+FIELDS = ("name", "breed", "birth_date", "sex", "neutered", "activity",
+          "exercise", "target_weight", "microchip", "notes")
 
 
 def _age(birth_date: str) -> dict | None:
@@ -72,6 +72,14 @@ def _clean(payload: dict) -> dict:
     if sex and sex not in SEXES:
         raise BadRequest("Le sexe doit être M ou F.")
 
+    # The chip number is identity rather than measurement: it is kept exactly
+    # as read off the vet's scanner, minus the spaces people add in fours.
+    # Not validated beyond length — a transponder standard is not worth
+    # refusing a number the scanner actually printed.
+    microchip = "".join((payload.get("microchip") or "").split())
+    if microchip and not (8 <= len(microchip) <= 20):
+        raise BadRequest("Le numéro de puce doit faire entre 8 et 20 caractères.")
+
     activity = (payload.get("activity") or "").strip()
     if activity and activity not in ACTIVITY_LEVELS:
         raise BadRequest(
@@ -93,6 +101,7 @@ def _clean(payload: dict) -> dict:
         "activity": activity,
         "exercise": exercise,
         "target_weight": target,
+        "microchip": microchip,
         "notes": notes,
     }
 

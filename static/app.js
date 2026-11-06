@@ -1,5 +1,5 @@
 /* ==========================================================================
-   Poids du chien : tableau de bord → pesées → croquettes → profil.
+   Carnet de santé : tableau de bord → pesées → croquettes → profil.
 
    Four screens behind a hash route, so the phone's back gesture and the
    browser's back button both do the obvious thing:
@@ -68,19 +68,77 @@
 
   const clear = (node) => { while (node.firstChild) node.removeChild(node.firstChild); };
 
-  function icon(path, size = 14) {
-    const ns = 'http://www.w3.org/2000/svg';
-    const svg = document.createElementNS(ns, 'svg');
+  const SVG_NS = 'http://www.w3.org/2000/svg';
+
+  /** An inline icon built from one or more shapes, on a 16x16 grid.
+   *  Always aria-hidden: the accessible name belongs on the control that
+   *  holds it, not on the decoration inside it. */
+  function glyph(parts, size = 14) {
+    const svg = document.createElementNS(SVG_NS, 'svg');
     svg.setAttribute('viewBox', '0 0 16 16');
     svg.setAttribute('width', size);
     svg.setAttribute('height', size);
     svg.setAttribute('aria-hidden', 'true');
-    const d = document.createElementNS(ns, 'path');
-    d.setAttribute('d', path);
-    d.setAttribute('fill', 'currentColor');
-    svg.appendChild(d);
+    svg.setAttribute('fill', 'none');
+    svg.setAttribute('stroke', 'currentColor');
+    svg.setAttribute('stroke-width', '1.5');
+    svg.setAttribute('stroke-linecap', 'round');
+    svg.setAttribute('stroke-linejoin', 'round');
+    for (const [tag, attrs] of parts) {
+      const node = document.createElementNS(SVG_NS, tag);
+      for (const [key, value] of Object.entries(attrs)) node.setAttribute(key, value);
+      svg.appendChild(node);
+    }
     return svg;
   }
+
+  const icon = (path, size = 14) =>
+    glyph([['path', { d: path, fill: 'currentColor', stroke: 'none' }]], size);
+
+  // One icon per screen. Filled where the shape is a silhouette (the paw,
+  // the kibble), stroked where it is a diagram (the scale, the bowl) — a
+  // 16px stroked paw is mush, and a filled scale is a blob.
+  const FILL = { fill: 'currentColor', stroke: 'none' };
+
+  const TAB_ICONS = {
+    // Bars: the universal "figures" mark. Deliberately not a line chart —
+    // at 16px a polyline reads as a scribble.
+    dashboard: [
+      ['rect', { x: 2, y: 8.6, width: 3.2, height: 5.4, rx: 1.2, ...FILL }],
+      ['rect', { x: 6.4, y: 5.4, width: 3.2, height: 8.6, rx: 1.2, ...FILL }],
+      ['rect', { x: 10.8, y: 2.4, width: 3.2, height: 11.6, rx: 1.2, ...FILL }],
+    ],
+    // A balance: beam, post, base, and two hanging pans.
+    weights: [
+      ['path', { d: 'M2.6 4.6 H13.4' }],
+      ['path', { d: 'M8 4.6 V12.2' }],
+      ['path', { d: 'M5.2 12.6 H10.8' }],
+      ['circle', { cx: 8, cy: 3, r: 1.1, ...FILL }],
+      ['path', { d: 'M1.3 7.6 a2.3 2.3 0 0 0 4.6 0 z' }],
+      ['path', { d: 'M10.1 7.6 a2.3 2.3 0 0 0 4.6 0 z' }],
+    ],
+    // A drumstick. Two things make or break it at 19px. The meat is an
+    // ellipse tilted along the bone's axis, not a circle — a circle on a stem
+    // is a key or a lollipop. And the two lobes of the bone head sit a clear
+    // gap apart, perpendicular to the shaft: placed any closer they merge
+    // into one blob and the whole icon goes back to looking like a key.
+    kibbles: [
+      ['ellipse', { cx: 5.4, cy: 10.6, rx: 4.3, ry: 3.5,
+                    transform: 'rotate(-45 5.4 10.6)', ...FILL }],
+      ['path', { d: 'M8.2 7.8 L12.2 3.8', 'stroke-width': 2.3 }],
+      ['circle', { cx: 10.9, cy: 2.5, r: 1.4, ...FILL }],
+      ['circle', { cx: 13.5, cy: 5.1, r: 1.4, ...FILL }],
+    ],
+
+    // The paw from the app icon, so the tab and the home screen agree.
+    profile: [
+      ['circle', { cx: 3.6, cy: 6.2, r: 1.45, ...FILL }],
+      ['circle', { cx: 6.4, cy: 4.0, r: 1.6, ...FILL }],
+      ['circle', { cx: 9.6, cy: 4.0, r: 1.6, ...FILL }],
+      ['circle', { cx: 12.4, cy: 6.2, r: 1.45, ...FILL }],
+      ['ellipse', { cx: 8, cy: 11.3, rx: 3.8, ry: 3.1, ...FILL }],
+    ],
+  };
 
   const WARN_ICON = 'M8 1.2 15 14H1L8 1.2Zm0 4.3a.8.8 0 0 0-.8.85l.25 3.4a.55.55 0 0 0 1.1 0l.25-3.4A.8.8 0 0 0 8 5.5Zm0 5.4a.85.85 0 1 0 0 1.7.85.85 0 0 0 0-1.7Z';
 
@@ -162,13 +220,19 @@
     const nav = $('views');
     clear(nav);
     for (const view of VIEWS) {
+      // Icon instead of a word, so four screens fit a phone's bottom bar
+      // without truncating. The name does not disappear — it becomes the
+      // accessible name and the desktop tooltip, so a screen reader still
+      // announces "Croquettes" rather than "button".
       nav.appendChild(el('button', {
         type: 'button',
-        text: view.label,
+        class: 'tab',
+        'aria-label': view.label,
+        title: view.label,
         'aria-pressed': 'false',
         dataset: { view: view.id },
         onclick: () => { location.hash = view.route; },
-      }));
+      }, glyph(TAB_ICONS[view.id], 19)));
     }
   }
 
@@ -1070,6 +1134,13 @@
         sex,
       ),
       el('div', { class: 'field' },
+        el('label', { for: 'p-microchip', text: 'Numéro de puce' }),
+        el('input', { class: 'input input-num', type: 'text', id: 'p-microchip',
+          inputMode: 'numeric', autocomplete: 'off', placeholder: '250268500123456',
+          value: dog.microchip || '' }),
+        el('span', { class: 'hint', text: 'Les espaces sont retirés à l’enregistrement.' }),
+      ),
+      el('div', { class: 'field' },
         el('span', { class: 'label', text: 'Stérilisation' }),
         el('label', { class: 'check' },
           el('input', { type: 'checkbox', id: 'p-neutered', checked: !!dog.neutered }),
@@ -1120,6 +1191,7 @@
         neutered: $('p-neutered').checked,
         activity: $('p-activity').value,
         exercise: $('p-exercise').value,
+        microchip: $('p-microchip').value,
         target_weight: $('p-target').value || null,
         notes: $('p-notes').value,
       };
@@ -1176,9 +1248,9 @@
     state.kibbles = kibbles.kibbles;
 
     const dog = dashboard.profile;
-    $('brand').textContent = dog.name || 'Poids';
+    $('brand').textContent = dog.name || 'Carnet';
     $('brand-sub').textContent = dog.name ? dog.breed || '' : 'du chien';
-    document.title = dog.name ? `Poids de ${dog.name}` : 'Poids du chien';
+    document.title = dog.name ? `Carnet de ${dog.name}` : 'Carnet de santé';
 
     const count = dashboard.entries.length;
     $('foot-note').textContent = count

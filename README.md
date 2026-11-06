@@ -1,6 +1,6 @@
-# Poids du chien
+# Dog Management
 
-Un petit PWA auto-hébergé pour suivre le poids de Kali : une pesée, le type de
+Un petit PWA auto-hébergé pour tenir le carnet de Kali : une pesée, le type de
 croquettes, la ration du jour — et, après chaque pesée, deux ou trois conseils
 écrits par Claude à partir des chiffres réels.
 
@@ -32,7 +32,7 @@ Pesée ──▶ SQLite ──▶ FastAPI ──▶ PWA (installable sur le tél
 ## 1. Installation (une fois)
 
 ```bash
-cd ~/apps/dog-weight
+cd ~/apps/dog-management
 /opt/homebrew/opt/python@3.12/bin/python3.12 -m venv venv
 ./venv/bin/pip install -r requirements.txt
 ./venv/bin/python scripts/make_icons.py
