@@ -15,11 +15,11 @@ from pathlib import Path
 OUT_DIR = Path(__file__).resolve().parent.parent / "static" / "icons"
 
 # The tile is dark in both themes, so these follow the *dark* end of the
-# palette in styles.css: the light-mode blue (#2a78d6) goes muddy against a
+# palette in styles.css: the light-mode emerald (#059669) goes muddy against a
 # near-black tile at 180px, where the brighter dark-mode step does not.
 BACKGROUND = (0x10, 0x15, 0x1A)   # --text-primary, the app's cool near-black
-HEAD = (0x39, 0x87, 0xE5)         # --series-1 (dark)
-LIGHT = (0x6A, 0xAE, 0xF5)        # a step lighter: ears and muzzle read separately
+HEAD = (0x10, 0xB9, 0x81)         # --series-1 (dark)
+LIGHT = (0x6E, 0xE7, 0xB7)        # a step lighter: ears and muzzle read separately
 SAMPLES = 3  # per axis
 
 

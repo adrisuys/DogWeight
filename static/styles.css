@@ -2,8 +2,13 @@
    Design tokens.
 
    Same structure as the recipes and workouts apps next door, different note:
-   cool greys and a single blue, because this app is mostly a chart and the
-   chart's one series has to be the loudest thing on the page.
+   cool greys and a single emerald, because this app is mostly a chart and
+   the chart's one series has to be the loudest thing on the page.
+
+   Emerald, not the status green: `--good` stays a pure green (hue 120°)
+   and the accent sits at ~160°, so "à jour" never reads as just another
+   link. In dark mode the accent is bright, so the text on a primary button
+   is ink rather than white — white on it would be under 2:1.
 
    Two colour families, kept apart on purpose:
 
@@ -29,10 +34,11 @@
   --grid:            #e3e8ed;
   --axis:            #c7d0d8;
   --border:          rgba(16, 21, 26, 0.12);
-  --hover-wash:      rgba(42, 120, 214, 0.07);
+  --hover-wash:      rgba(5, 150, 105, 0.07);
 
-  --accent:          #1f6cc4;   /* links, focus rings, the primary action */
-  --series-1:        #2a78d6;   /* chart marks — validated against #ffffff */
+  --accent:          #047857;   /* links, focus rings, the primary action — 5.5:1 under white */
+  --on-accent:       #ffffff;   /* text on a primary button */
+  --series-1:        #059669;   /* chart marks — 3.8:1 against #ffffff */
   --target-rule:     #78848f;
 
   --good:            #006300;
@@ -61,10 +67,11 @@
     --grid:           #272e35;
     --axis:           #39424a;
     --border:         rgba(238, 243, 247, 0.12);
-    --hover-wash:     rgba(57, 135, 229, 0.12);
+    --hover-wash:     rgba(16, 185, 129, 0.12);
 
-    --accent:         #5aa3ef;
-    --series-1:       #3987e5;   /* validated against #171b1f */
+    --accent:         #34d399;
+    --on-accent:      #0e1216;
+    --series-1:       #10b981;   /* 6.8:1 against #171b1f */
     --target-rule:    #8d99a4;
 
     --good:           #4ec94e;
@@ -89,10 +96,11 @@
   --grid:           #272e35;
   --axis:           #39424a;
   --border:         rgba(238, 243, 247, 0.12);
-  --hover-wash:     rgba(57, 135, 229, 0.12);
+  --hover-wash:     rgba(16, 185, 129, 0.12);
 
-  --accent:         #5aa3ef;
-  --series-1:       #3987e5;
+  --accent:         #34d399;
+  --on-accent:      #0e1216;
+  --series-1:       #10b981;
   --target-rule:    #8d99a4;
 
   --good:           #4ec94e;
@@ -173,7 +181,7 @@ a { color: var(--accent); }
 }
 .btn:hover { background: var(--hover-wash); }
 .btn[disabled] { opacity: 0.5; cursor: default; }
-.btn-primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.btn-primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
 .btn-primary:hover { background: var(--accent); filter: brightness(1.08); }
 .btn-danger { color: var(--bad); border-color: var(--border); }
 .btn-icon { padding: 6px; min-width: 32px; display: inline-flex; align-items: center; justify-content: center; }
