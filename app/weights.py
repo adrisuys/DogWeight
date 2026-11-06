@@ -220,11 +220,20 @@ def _slope_kg_per_week(entries: list[dict]) -> float | None:
 
 
 def _window(entries: list[dict], days: int) -> list[dict]:
+    """The weighings the trend is fitted over.
+
+    The fixed window is the rule, but weighing is irregular in practice — two
+    months can pass between a holiday and the next time anyone thinks of the
+    scale — and a window that catches one point yields no trend at all. So it
+    widens to the last three weighings rather than reporting nothing, and the
+    caller publishes the span it actually used instead of the constant.
+    """
     if not entries:
         return []
     last = date.fromisoformat(entries[-1]["date"])
     cutoff = (last - timedelta(days=days)).isoformat()
-    return [e for e in entries if e["date"] >= cutoff]
+    window = [e for e in entries if e["date"] >= cutoff]
+    return window if len(window) >= 2 else entries[-3:]
 
 
 def stats(entries: list[dict] | None = None, target: float | None = None) -> dict:
@@ -244,7 +253,7 @@ def stats(entries: list[dict] | None = None, target: float | None = None) -> dic
         "min": min((e["weight"] for e in entries), default=None),
         "max": max((e["weight"] for e in entries), default=None),
         "trend_kg_per_week": None,
-        "trend_window_days": TREND_WINDOW_DAYS,
+        "trend_window_days": None,      # the span actually fitted over
         "trend_points": 0,
         "delta_to_target": None,
         "at_target": None,
@@ -264,6 +273,9 @@ def stats(entries: list[dict] | None = None, target: float | None = None) -> dic
 
     window = _window(entries, TREND_WINDOW_DAYS)
     out["trend_points"] = len(window)
+    if len(window) >= 2:
+        out["trend_window_days"] = (date.fromisoformat(window[-1]["date"])
+                                    - date.fromisoformat(window[0]["date"])).days
     slope = _slope_kg_per_week(window)
     if slope is not None:
         out["trend_kg_per_week"] = round(slope, 3)
@@ -280,7 +292,11 @@ def stats(entries: list[dict] | None = None, target: float | None = None) -> dic
         # extrapolating backwards would be worse than saying nothing.
         if slope and not out["at_target"] and (delta > 0) == (slope < 0):
             weeks = abs(delta / slope)
-            if weeks <= 260:      # five years out is not a forecast
+            # Beyond two years the arithmetic still works and the answer is
+            # meaningless: a plateau divided by a near-zero slope produces a
+            # date in 2030, which reads as precision nobody has. Past the cap
+            # the dashboard says the trend isn't going there, which is true.
+            if weeks <= 104:
                 last = date.fromisoformat(entries[-1]["date"])
                 out["eta_date"] = (last + timedelta(weeks=weeks)).isoformat()
 

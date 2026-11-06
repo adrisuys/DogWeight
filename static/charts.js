@@ -455,7 +455,6 @@
     const t0 = at(points[0].date);
     const t1 = at(points[points.length - 1].date);
     const span = Math.max(t1 - t0, 1);
-    const X = (ms) => plot.x + ((ms - t0) / span) * plot.width;
 
     const yTicks = ticksFromZero(Math.max(...points.map((p) => p.grams)),
       Math.max(2, Math.round(plot.height / 44)));
@@ -463,12 +462,19 @@
     const Y = (g) => plot.y + plot.height - (g / top) * plot.height;
 
     // Bar width comes from the tightest pair of weighings on screen, so bars
-    // never overlap when the schedule is irregular.
+    // never overlap when the schedule is irregular — two weighings a day
+    // apart in a six-month span would otherwise sit on top of each other.
     let tightest = plot.width;
     for (let i = 1; i < points.length; i++) {
-      tightest = Math.min(tightest, X(at(points[i].date)) - X(at(points[i - 1].date)));
+      tightest = Math.min(tightest, ((at(points[i].date) - at(points[i - 1].date)) / span) * plot.width);
     }
     const barWidth = Math.max(3, Math.min(BAR_MAX, (points.length === 1 ? BAR_MAX : tightest) - GAP));
+
+    // Centres are inset by half a bar, so the first and last bars sit wholly
+    // inside the plot. Without it the first bar spills left over the value
+    // axis and paints across its own "200" label.
+    const inset = barWidth / 2;
+    const X = (ms) => plot.x + inset + ((ms - t0) / span) * (plot.width - barWidth);
 
     const root = svg('svg', {
       viewBox: `0 0 ${width} ${height}`,

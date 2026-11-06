@@ -128,7 +128,17 @@ tailscale serve status
 
 ---
 
-## 5. Notes de conception
+## 5. Après avoir modifié le front
+
+Le service worker sert la coquille (HTML, CSS, JS) depuis le cache en premier,
+donc **modifier un fichier de `static/` ne suffit pas** : il faut monter
+`VERSION` dans `static/sw.js`, sinon les appareils déjà installés continuent
+de servir l'ancienne version. L'API, elle, n'est jamais mise en cache — un
+poids périmé est pire que pas de poids.
+
+---
+
+## 6. Notes de conception
 
 **Une pesée par jour.** `weights.date` est `UNIQUE` : remonter sur la balance
 le même après-midi est une correction, pas deux faits. L'écriture fait un
