@@ -67,6 +67,12 @@
 
   const num = (value, digits = 0) => nf(digits).format(value);
 
+  // Marks and tooltips show a weight at the precision the scale reads it, to
+  // two decimals. Axis ticks deliberately do not: they are a scale rather
+  // than a measurement, and "22,00 / 23,00" is noise where "22,0 / 23,0" is
+  // a ruler.
+  const kg = (value) => `${num(value, 2)} kg`;
+
   // Noon, so a timezone an hour either side can never move a date to the day
   // before — these are calendar days, not instants.
   const at = (iso) => new Date(iso + 'T12:00:00').getTime();
@@ -283,9 +289,9 @@
       const only = points[0];
       const root = svg('svg', {
         viewBox: `0 0 ${width} 72`, role: 'img',
-        'aria-label': `Une seule pesée : ${num(only.weight, 1)} kg le ${longDate(only.date)}`,
+        'aria-label': `Une seule pesée : ${kg(only.weight)} le ${longDate(only.date)}`,
       });
-      root.appendChild(text(width / 2, 34, `${num(only.weight, 1)} kg`,
+      root.appendChild(text(width / 2, 34, kg(only.weight),
         { fill: t.primary, size: 26, weight: 600, anchor: 'middle' }));
       root.appendChild(text(width / 2, 56,
         `le ${longDate(only.date)} — une courbe à partir de la deuxième pesée`,
@@ -350,7 +356,7 @@
         x1: plot.x, x2: plot.x + plot.width, y1: y, y2: y,
         stroke: t.rule, 'stroke-width': 1.5, 'stroke-dasharray': '5 4',
       }));
-      const label = spec.targetLabel || `objectif ${num(spec.target, 1)} kg`;
+      const label = spec.targetLabel || `objectif ${kg(spec.target)}`;
       root.appendChild(haloed(
         text(plot.x + plot.width, y - 7, label,
           { fill: t.secondary, size: 11, anchor: 'end' }),
@@ -382,7 +388,7 @@
     const nearRight = lastX > plot.x + plot.width - 40;
     root.appendChild(haloed(
       text(Math.min(lastX, plot.x + plot.width - 2), Y(last.weight) - 12,
-        `${num(last.weight, 1)} kg`,
+        kg(last.weight),
         { fill: t.primary, size: 12, weight: 600, anchor: nearRight ? 'end' : 'middle' }),
       t.surface,
     ));
@@ -413,12 +419,12 @@
       focus.setAttribute('cy', Y(best.weight));
       focus.setAttribute('visibility', 'visible');
 
-      const rows = [{ label: 'Poids', value: `${num(best.weight, 1)} kg`, color: t.series, dot: true }];
+      const rows = [{ label: 'Poids', value: kg(best.weight), color: t.series, dot: true }];
       if (spec.target != null) {
         const delta = best.weight - spec.target;
         rows.push({
           label: 'Écart',
-          value: `${delta > 0 ? '+' : ''}${num(delta, 1)} kg`,
+          value: `${delta > 0 ? '+' : ''}${kg(delta)}`,
           muted: true,
         });
       }

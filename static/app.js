@@ -92,6 +92,16 @@
   const num = (value, digits = 0) => nf(digits).format(value);
   const signed = (value, digits = 1) => (value > 0 ? '+' : '') + num(value, digits);
 
+  // Weights are measurements, and the scale reads to 10 g — so they are shown
+  // to the precision they were taken at, trailing zeros included. Rounding
+  // 22,15 to 22,2 on screen invents a change that never happened, and over a
+  // diet made of 50 g steps the invented changes are the same size as the
+  // real ones. Differences get the same treatment: they are differences *of*
+  // these numbers, so showing them coarser would not reconcile.
+  const WEIGHT_DIGITS = 2;
+  const kg = (value) => `${num(value, WEIGHT_DIGITS)} kg`;
+  const signedKg = (value) => `${signed(value, WEIGHT_DIGITS)} kg`;
+
   const DATE_FMT = new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' });
   const SHORT_FMT = new Intl.DateTimeFormat('fr-FR', { day: '2-digit', month: '2-digit', year: '2-digit' });
   // Noon, so a timezone offset can never move a calendar day to the one before.
@@ -203,13 +213,13 @@
     const change = stats.change_since_previous;
     tiles.appendChild(el('div', { class: 'tile tile-hero' },
       el('span', { class: 'tile-label', text: 'Poids actuel' }),
-      el('span', { class: 'tile-value', text: latest ? `${num(latest.weight, 1)} kg` : '—' }),
+      el('span', { class: 'tile-value', text: latest ? kg(latest.weight) : '—' }),
       el('span', {
         class: 'tile-note',
         text: latest
           ? (change === null || change === 0
             ? `pesé ${daysAgo(latest.date)}`
-            : `${signed(change)} kg depuis la pesée précédente`)
+            : `${signedKg(change)} depuis la pesée précédente`)
           : 'aucune pesée',
       }),
     ));
@@ -221,7 +231,7 @@
       el('span', { class: 'tile-label', text: 'Poids de forme' }),
       el('span', {
         class: 'tile-value',
-        text: profile.target_weight != null ? `${num(profile.target_weight, 1)} kg` : '—',
+        text: profile.target_weight != null ? kg(profile.target_weight) : '—',
       }),
       profile.target_weight == null
         ? el('button', {
@@ -232,7 +242,7 @@
           class: 'tile-note' + (stats.at_target ? ' is-good' : ''),
           text: delta == null ? ''
             : stats.at_target ? 'objectif atteint'
-              : delta > 0 ? `${num(delta, 1)} kg à perdre` : `${num(-delta, 1)} kg à prendre`,
+              : delta > 0 ? `${kg(delta)} à perdre` : `${kg(-delta)} à prendre`,
         }),
     ));
 
@@ -393,14 +403,14 @@
     view.appendChild(chartCard(
       'Poids',
       profile.target_weight != null
-        ? `objectif ${num(profile.target_weight, 1)} kg`
+        ? `objectif ${kg(profile.target_weight)}`
         : `${entries.length} pesées`,
       (holder) => Charts.weight(holder, {
         points: entries.map((e) => ({
           date: e.date, weight: e.weight, grams: e.grams, kibble: e.kibble_label,
         })),
         target: profile.target_weight,
-        targetLabel: `poids de forme ${num(profile.target_weight || 0, 1)} kg`,
+        targetLabel: `poids de forme ${kg(profile.target_weight || 0)}`,
         ariaLabel: `Poids de ${profile.name || 'le chien'} du ${longDate(entries[0].date)} `
           + `au ${longDate(entries[entries.length - 1].date)}`,
       }),
@@ -582,8 +592,8 @@
         ? null : entry.weight - data.profile.target_weight;
       body.appendChild(el('tr', {},
         el('td', { text: longDate(entry.date) }),
-        el('td', { class: 'num', text: `${num(entry.weight, 1)} kg` }),
-        el('td', { class: 'num', text: delta == null ? '—' : `${signed(delta)} kg` }),
+        el('td', { class: 'num', text: kg(entry.weight) }),
+        el('td', { class: 'num', text: delta == null ? '—' : signedKg(delta) }),
         el('td', { text: entry.kibble_label || '—' }),
         el('td', { class: 'num', text: entry.grams == null ? '—' : `${num(entry.grams)} g` }),
         el('td', { text: entry.notes || '' }),
