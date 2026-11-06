@@ -130,7 +130,9 @@
       ['circle', { cx: 13.5, cy: 5.1, r: 1.4, ...FILL }],
     ],
 
-    // The paw from the app icon, so the tab and the home screen agree.
+    // A paw. The app icon is a dog's head, not this — a head needs thin
+    // triangular ears and those silt up at 19px, where a paw stays four
+    // clear shapes.
     profile: [
       ['circle', { cx: 3.6, cy: 6.2, r: 1.45, ...FILL }],
       ['circle', { cx: 6.4, cy: 4.0, r: 1.6, ...FILL }],

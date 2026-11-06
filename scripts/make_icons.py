@@ -1,6 +1,6 @@
 """Generate the PWA icons — stdlib only, no image library.
 
-Draws a rounded-square tile with a paw print on it, supersampled 3x3 for
+Draws a rounded-square tile with a dog's head on it, supersampled 3x3 for
 smooth edges, and writes real PNGs by hand.
 
     ./venv/bin/python scripts/make_icons.py
@@ -18,8 +18,8 @@ OUT_DIR = Path(__file__).resolve().parent.parent / "static" / "icons"
 # palette in styles.css: the light-mode blue (#2a78d6) goes muddy against a
 # near-black tile at 180px, where the brighter dark-mode step does not.
 BACKGROUND = (0x10, 0x15, 0x1A)   # --text-primary, the app's cool near-black
-PAD = (0x39, 0x87, 0xE5)          # --series-1 (dark)
-TOES = (0x6A, 0xAE, 0xF5)         # a step lighter, so the toes read separately
+HEAD = (0x39, 0x87, 0xE5)         # --series-1 (dark)
+LIGHT = (0x6A, 0xAE, 0xF5)        # a step lighter: ears and muzzle read separately
 SAMPLES = 3  # per axis
 
 
@@ -38,6 +38,19 @@ def _circle(px: float, py: float, cx: float, cy: float, radius: float) -> bool:
     return dx * dx + dy * dy <= radius * radius
 
 
+def _triangle(px: float, py: float, a, b, c) -> bool:
+    """Point-in-triangle by consistent cross-product sign.
+
+    The third primitive, and the one that makes the glyph a dog: with only
+    rects and circles the ears come out as round side-flaps and the result
+    reads as a monkey.
+    """
+    def side(p, q, r):
+        return (q[0] - p[0]) * (r[1] - p[1]) - (q[1] - p[1]) * (r[0] - p[0])
+    d1, d2, d3 = side(a, b, (px, py)), side(b, c, (px, py)), side(c, a, (px, py))
+    return not ((d1 < 0 or d2 < 0 or d3 < 0) and (d1 > 0 or d2 > 0 or d3 > 0))
+
+
 def _shade(px: float, py: float, size: int, inset: float) -> tuple[int, int, int] | None:
     """Colour at a sample point, or None outside the tile."""
     if not _rounded_rect(px, py, 0, 0, size, size, size * 0.22):
@@ -54,18 +67,33 @@ def _shade(px: float, py: float, size: int, inset: float) -> tuple[int, int, int
     def by(v: float) -> float:
         return top + box * v
 
-    # Four toes on an arc, the outer pair set lower and smaller — that
-    # asymmetry is what makes the shape read as a paw rather than four dots.
-    toes = [(0.16, 0.36, 0.105), (0.39, 0.20, 0.125),
-            (0.63, 0.20, 0.125), (0.86, 0.36, 0.105)]
-    for cx, cy, r in toes:
-        if _circle(px, py, bx(cx), by(cy), box * r):
-            return TOES
+    def rr(x0, y0, x1, y1, r):
+        return _rounded_rect(px, py, bx(x0), by(y0), bx(x1), by(y1), box * r)
 
-    # The pad: a rounded rectangle with a radius large enough to read as a
-    # blob, which is all a pad is at 60 pixels.
-    if _rounded_rect(px, py, bx(0.20), by(0.50), bx(0.82), by(0.93), box * 0.24):
-        return PAD
+    def ci(cx, cy, r):
+        return _circle(px, py, bx(cx), by(cy), box * r)
+
+    def tri(a, b, c):
+        return _triangle(px, py, (bx(a[0]), by(a[1])),
+                         (bx(b[0]), by(b[1])), (bx(c[0]), by(c[1])))
+
+    # Painted front-to-back: the first hit wins, so the nose is tested before
+    # the muzzle that carries it and the head before the ears behind it.
+    if rr(0.440, 0.630, 0.560, 0.700, 0.030):      # nose — wider than tall
+        return BACKGROUND
+    if ci(0.355, 0.430, 0.052) or ci(0.645, 0.430, 0.052):
+        return BACKGROUND                           # eyes
+    if rr(0.330, 0.575, 0.670, 0.825, 0.120):      # muzzle
+        return LIGHT
+    if rr(0.175, 0.185, 0.825, 0.745, 0.260):      # head
+        return HEAD
+    # Ears. Deliberately stubby: a long narrow triangle reads as a fox, and
+    # thin ones silt up below about 60px — which is the notification badge
+    # and the browser tab, not just the home screen.
+    if tri((0.115, 0.420), (0.285, 0.055), (0.480, 0.290)):
+        return LIGHT
+    if tri((0.885, 0.420), (0.715, 0.055), (0.520, 0.290)):
+        return LIGHT
     return BACKGROUND
 
 

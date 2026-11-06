@@ -12,7 +12,7 @@
      names are content hashes and can never mean anything else.
    ========================================================================== */
 
-const VERSION = 'dog-v5';
+const VERSION = 'dog-v6';
 const SHELL = `${VERSION}-shell`;
 const PHOTOS = `${VERSION}-photos`;
 
