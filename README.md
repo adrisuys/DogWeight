@@ -1,0 +1,161 @@
+# Poids du chien
+
+Un petit PWA auto-hébergé pour suivre le poids de Kali : une pesée, le type de
+croquettes, la ration du jour — et, après chaque pesée, deux ou trois conseils
+écrits par Claude à partir des chiffres réels.
+
+Remplace un tableur à quatre colonnes (date, poids, croquettes, grammes).
+Tourne sur un Mac à la maison. Pas de service payant, pas de cloud, pas
+d'étape de build, pas de npm.
+
+```
+Pesée ──▶ SQLite ──▶ FastAPI ──▶ PWA (installable sur le téléphone)
+            │                     exposé en HTTPS par Tailscale
+            └──▶ claude -p ──▶ conseils, en tâche de fond
+```
+
+## Ce que le tableur ne pouvait pas faire
+
+* **Un poids de forme.** L'objectif appartient au chien, pas à une ligne. Tout
+  le tableau de bord se mesure par rapport à lui : écart, tendance en
+  kg/semaine, date d'arrivée estimée.
+* **Des croquettes corrigeables.** Une croquette est une ligne de sa propre
+  table, pas une chaîne recopiée dans une colonne. Corriger l'orthographe
+  d'une marque une fois répare deux ans d'historique — photos du sac et
+  kcal/100 g comprises.
+* **Des conseils.** Après chaque enregistrement, Claude relit le profil,
+  l'objectif, l'historique et la ration, et renvoie 2–3 conseils chiffrés.
+  Ce n'est pas un bouton : une pesée les déclenche.
+
+---
+
+## 1. Installation (une fois)
+
+```bash
+cd ~/apps/dog-weight
+/opt/homebrew/opt/python@3.12/bin/python3.12 -m venv venv
+./venv/bin/pip install -r requirements.txt
+./venv/bin/python scripts/make_icons.py
+```
+
+### La fiche du chien
+
+```bash
+./venv/bin/python -m app.cli seed data/kali.json
+```
+
+Tout ce qui s'y trouve part dans le contexte des conseils, donc chaque champ
+compte : la race, l'âge, la stérilisation et l'exercice quotidien changent les
+besoins énergétiques beaucoup plus que le poids lui-même. **Le poids de forme
+n'est pas rempli** — à demander au vétérinaire, puis à saisir dans l'écran
+Profil.
+
+### Lancer
+
+```bash
+./venv/bin/python -m app.cli serve        # http://127.0.0.1:8740
+```
+
+---
+
+## 2. Les conseils
+
+L'app appelle le binaire `claude` déjà installé sur la machine plutôt que
+l'API Anthropic : rien à stocker comme clé, rien à payer en plus de
+l'abonnement, et l'authentification est déjà faite.
+
+Le prix à payer est la latence — 30 secondes environ. C'est précisément ce que
+le découpage cache : enregistrer une pesée marque la ligne `pending` et rend la
+main tout de suite, la génération tourne derrière, et le tableau de bord
+l'affiche quand elle arrive.
+
+Pour voir exactement ce que le modèle reçoit, sans l'appeler :
+
+```bash
+./venv/bin/python -m app.cli advice --show-prompt
+```
+
+Les conseils sont mis en cache contre une empreinte du contexte : recharger la
+page est gratuit, corriger une pesée régénère.
+
+| Variable | Défaut | |
+|---|---|---|
+| `DOG_CLAUDE_BIN` | `which claude` | chemin du binaire |
+| `DOG_CLAUDE_MODEL` | `opus` | modèle passé à `--model` |
+| `DOG_ADVICE_TIMEOUT` | `180` | secondes avant d'abandonner |
+| `DOG_PORT` | `8740` | port du serveur |
+| `DOG_DB` | `data/dog.db` | base SQLite |
+
+---
+
+## 3. En ligne de commande
+
+```bash
+./venv/bin/python -m app.cli status                    # où on en est
+./venv/bin/python -m app.cli add 2026-11-06 20.6 \
+    --grams 265 --kibble 2                             # pesée + conseils
+./venv/bin/python -m app.cli advice --force            # regénérer
+./venv/bin/python -m app.cli backup                    # base + photos
+./venv/bin/python -m app.cli sweep                     # photos orphelines
+```
+
+`add` génère les conseils de façon synchrone : au terminal il n'y a pas
+d'écran sur lequel revenir, donc attendre est tout l'intérêt.
+
+---
+
+## 4. Le garder en vie
+
+```bash
+./deploy/install.sh
+```
+
+Installe un job launchd qui démarre le serveur à l'ouverture de session et le
+relance s'il meurt. `./deploy/install.sh remove` le retire ;
+`dry-run` montre le plist sans toucher à launchd.
+
+Le job passe le chemin absolu de `claude` : launchd donne un `PATH` minimal qui
+n'inclut pas Homebrew, et sans ça la première pesée après un redémarrage
+échouerait.
+
+Pour l'atteindre depuis le téléphone, en HTTPS, sans rien ouvrir sur
+Internet :
+
+```bash
+tailscale serve --bg 8740
+tailscale serve status
+```
+
+---
+
+## 5. Notes de conception
+
+**Une pesée par jour.** `weights.date` est `UNIQUE` : remonter sur la balance
+le même après-midi est une correction, pas deux faits. L'écriture fait un
+UPSERT sur la date.
+
+**Une case vide n'est pas un zéro.** `grams` est nullable et le reste. Le
+graphique des rations saute le jour au lieu de dessiner une barre à zéro, qui
+se lirait « n'a rien mangé ».
+
+**Deux graphiques, pas deux axes.** Les kilos et les grammes/jour sont des
+quantités différentes à des échelles sans rapport. Les superposer sur deux axes
+y laisserait croire à une relation qui ne serait qu'un artefact des échelles
+choisies.
+
+**L'axe des poids ne part pas de zéro ; celui des rations, si.** Le poids se lit
+comme une variation dans le temps, et une base à zéro écraserait un régime de
+deux kilos en une ligne plate. La longueur d'une barre, elle, *est* la valeur.
+
+**Supprimer une croquette est refusé tant que des pesées l'utilisent.** C'est à
+ça que sert l'archivage : un sac que vous ne rachetez plus explique encore ce
+que le poids a fait au printemps dernier.
+
+**Les photos sont nommées par leur contenu.** Le nom est une empreinte des
+octets et l'extension vient de ce que les octets sont vraiment, jamais du nom
+de fichier ni de l'en-tête — qui ne sont que des affirmations de l'envoyeur.
+Le SVG est refusé : il peut porter du script, et ces fichiers sont servis
+depuis notre propre origine.
+
+**Claude n'est pas vétérinaire, et le prompt le lui dit.** Tout ce qui relève
+de la santé est renvoyé vers le vétérinaire au lieu d'être supposé.

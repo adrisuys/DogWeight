@@ -1,0 +1,483 @@
+/* ==========================================================================
+   Design tokens.
+
+   Same structure as the recipes and workouts apps next door, different note:
+   cool greys and a single blue, because this app is mostly a chart and the
+   chart's one series has to be the loudest thing on the page.
+
+   Two colour families, kept apart on purpose:
+
+   * `--series-1` and `--target-rule` are *chart marks*. The series blue is
+     validated for the lightness band, chroma floor and 3:1 contrast against
+     both surfaces; the target rule is deliberately muted ink, because a goal
+     line is a reference, not a second measurement, and giving it a hue would
+     read as one.
+   * `--good` / `--warn` / `--bad` are *status text*. They are darker in light
+     mode than the mark palette would be, because they sit under words. They
+     never carry meaning alone — every one of them ships beside a label.
+   ========================================================================== */
+
+:root {
+  color-scheme: light;
+
+  --page:            #f7f8f9;
+  --surface-1:       #ffffff;
+  --surface-2:       #eef1f4;
+  --text-primary:    #10151a;
+  --text-secondary:  #4a5661;
+  --text-muted:      #78848f;
+  --grid:            #e3e8ed;
+  --axis:            #c7d0d8;
+  --border:          rgba(16, 21, 26, 0.12);
+  --hover-wash:      rgba(42, 120, 214, 0.07);
+
+  --accent:          #1f6cc4;   /* links, focus rings, the primary action */
+  --series-1:        #2a78d6;   /* chart marks — validated against #ffffff */
+  --target-rule:     #78848f;
+
+  --good:            #006300;
+  --warn:            #8a5a00;
+  --bad:             #c0281f;
+
+  --radius: 10px;
+  --shadow: 0 1px 2px rgba(16, 21, 26, 0.05);
+
+  /* How far below the safe-area inset the top bar's content starts in the
+     installed iOS app, to clear iOS 27's blur band. Same value as the other
+     two apps, validated on an iPhone. */
+  --ios-blur-gap: 32px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:where(:not([data-theme="light"])) {
+    color-scheme: dark;
+
+    --page:           #0e1216;
+    --surface-1:      #171b1f;
+    --surface-2:      #1f252b;
+    --text-primary:   #eef3f7;
+    --text-secondary: #aebac5;
+    --text-muted:     #8795a1;
+    --grid:           #272e35;
+    --axis:           #39424a;
+    --border:         rgba(238, 243, 247, 0.12);
+    --hover-wash:     rgba(57, 135, 229, 0.12);
+
+    --accent:         #5aa3ef;
+    --series-1:       #3987e5;   /* validated against #171b1f */
+    --target-rule:    #8d99a4;
+
+    --good:           #4ec94e;
+    --warn:           #f0b429;
+    --bad:            #f08080;
+
+    --shadow: none;
+  }
+}
+
+/* The toggle must win over the OS setting in both directions, so the dark
+   values are declared again under the stamped attribute. */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --page:           #0e1216;
+  --surface-1:      #171b1f;
+  --surface-2:      #1f252b;
+  --text-primary:   #eef3f7;
+  --text-secondary: #aebac5;
+  --text-muted:     #8795a1;
+  --grid:           #272e35;
+  --axis:           #39424a;
+  --border:         rgba(238, 243, 247, 0.12);
+  --hover-wash:     rgba(57, 135, 229, 0.12);
+
+  --accent:         #5aa3ef;
+  --series-1:       #3987e5;
+  --target-rule:    #8d99a4;
+
+  --good:           #4ec94e;
+  --warn:           #f0b429;
+  --bad:            #f08080;
+
+  --shadow: none;
+}
+
+/* ========================================================================== */
+
+* { box-sizing: border-box; }
+
+/* Our layout rules use display:flex/grid, which would otherwise win over the
+   user-agent's [hidden] rule. */
+[hidden] { display: none !important; }
+
+html, body { margin: 0; padding: 0; }
+
+body {
+  background: var(--page);
+  color: var(--text-primary);
+  font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+  -webkit-font-smoothing: antialiased;
+  padding-bottom: env(safe-area-inset-bottom);
+  padding-top: var(--topbar-h, 59px);
+}
+
+html { scroll-padding-top: var(--topbar-h, 59px); }
+
+h1, h2, h3 { margin: 0; font-weight: 600; letter-spacing: -0.01em; }
+h2 { font-size: 17px; }
+h3 { font-size: 14px; }
+
+a { color: var(--accent); }
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* --- top bar ------------------------------------------------------------ */
+
+.topbar {
+  position: fixed;
+  inset: 0 0 auto 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 10px 18px;
+  padding-top: calc(10px + env(safe-area-inset-top));
+  background: var(--surface-1);
+  border-bottom: 1px solid var(--border);
+}
+
+.topbar-lead { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.brand { font-size: 16px; }
+.brand-sub { font-size: 13px; color: var(--text-muted); font-weight: 400; }
+.topbar-actions { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+
+/* --- controls ----------------------------------------------------------- */
+
+.btn {
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary);
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 6px 12px;
+  min-height: 32px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.btn:hover { background: var(--hover-wash); }
+.btn[disabled] { opacity: 0.5; cursor: default; }
+.btn-primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.btn-primary:hover { background: var(--accent); filter: brightness(1.08); }
+.btn-danger { color: var(--bad); border-color: var(--border); }
+.btn-icon { padding: 6px; min-width: 32px; display: inline-flex; align-items: center; justify-content: center; }
+.btn-sm { font-size: 12px; min-height: 28px; padding: 4px 9px; }
+
+.segmented {
+  display: inline-flex;
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  padding: 2px;
+  gap: 2px;
+  flex-wrap: wrap;
+}
+.segmented button {
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  background: none;
+  border: 0;
+  border-radius: 7px;
+  padding: 5px 11px;
+  cursor: pointer;
+}
+.segmented button:hover { color: var(--text-primary); background: var(--hover-wash); }
+.segmented button[aria-pressed="true"] {
+  color: var(--text-primary);
+  background: var(--surface-2);
+}
+
+.input {
+  font: inherit;
+  font-size: 14px;
+  color: var(--text-primary);
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 7px 10px;
+  min-height: 34px;
+  width: 100%;
+}
+textarea.input { resize: vertical; line-height: 1.45; }
+.input-num { font-variant-numeric: tabular-nums; }
+
+/* The outer spin buttons on number fields earn nothing here. */
+.input[type="number"]::-webkit-outer-spin-button,
+.input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.input[type="number"] { -moz-appearance: textfield; }
+
+/* iOS zooms the page in when a field under 16px takes focus, and once
+   installed to the home screen it never zooms back out. The zoom is prevented
+   rather than undone, and only where the pointer is a finger. */
+@media (pointer: coarse) {
+  .input, textarea.input, select.input { font-size: 16px; }
+}
+
+.field { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.field-wide { grid-column: 1 / -1; }
+.field label, .field .label {
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.field .hint { font-size: 12px; color: var(--text-muted); }
+
+.check { display: flex; align-items: center; gap: 8px; font-size: 14px; }
+.check input { width: 16px; height: 16px; accent-color: var(--accent); }
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 12px 14px;
+}
+.form-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.form-error { color: var(--bad); font-size: 13px; }
+
+/* --- layout ------------------------------------------------------------- */
+
+main { max-width: 1040px; margin: 0 auto; padding: 18px; }
+.view { display: flex; flex-direction: column; gap: 18px; }
+
+.card {
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 16px 18px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+.card-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.card-head h2 { margin-right: auto; }
+.card-sub { font-size: 13px; color: var(--text-muted); }
+
+.empty-note { color: var(--text-muted); font-size: 14px; margin: 0; }
+
+.foot {
+  max-width: 1040px;
+  margin: 0 auto;
+  padding: 24px 18px 40px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+/* --- stat tiles --------------------------------------------------------- */
+/* The headline row. The hero figure is the current weight; everything beside
+   it is context for that one number, which is why it is the only one set
+   large. */
+
+.tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 1px;
+  background: var(--border);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+.tile { background: var(--surface-1); padding: 14px 16px; display: flex; flex-direction: column; gap: 3px; }
+.tile-label {
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.tile-value { font-size: 20px; font-weight: 600; letter-spacing: -0.02em; }
+.tile-hero .tile-value { font-size: 30px; }
+.tile-note { font-size: 12px; color: var(--text-muted); }
+.tile-note.is-good { color: var(--good); }
+.tile-note.is-warn { color: var(--warn); }
+.tile-note.is-bad  { color: var(--bad); }
+
+/* --- charts ------------------------------------------------------------- */
+
+.chart { width: 100%; }
+.chart svg { display: block; width: 100%; height: auto; overflow: visible; }
+.chart-note { font-size: 12px; color: var(--text-muted); }
+
+/* A chart with no room is a chart nobody can read; it scrolls inside its own
+   box rather than making the page scroll sideways. */
+.chart-scroll { overflow-x: auto; overflow-y: hidden; }
+
+.tooltip {
+  position: fixed;
+  z-index: 60;
+  pointer-events: none;
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 4px 14px rgba(16, 21, 26, 0.16);
+  padding: 8px 10px;
+  font-size: 12.5px;
+  min-width: 120px;
+}
+.tt-head { font-weight: 600; margin-bottom: 4px; }
+.tt-row { display: flex; align-items: center; gap: 8px; white-space: nowrap; }
+.tt-name { color: var(--text-secondary); }
+.tt-value { margin-left: auto; font-variant-numeric: tabular-nums; font-weight: 500; }
+.tt-muted { color: var(--text-muted); }
+.key-line { width: 10px; height: 2px; border-radius: 1px; flex: none; }
+.key-dot { width: 9px; height: 9px; border-radius: 2px; flex: none; }
+
+/* --- advice ------------------------------------------------------------- */
+
+.advice-summary { font-size: 14.5px; color: var(--text-secondary); }
+.hints { display: flex; flex-direction: column; gap: 12px; margin: 0; padding: 0; list-style: none; }
+.hint { border-left: 2px solid var(--accent); padding-left: 12px; display: flex; flex-direction: column; gap: 3px; }
+.hint-title { font-weight: 600; font-size: 14px; }
+.hint-detail { font-size: 14px; color: var(--text-secondary); }
+.caution {
+  display: flex;
+  gap: 9px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  background: var(--surface-2);
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+.caution svg { flex: none; margin-top: 2px; color: var(--warn); }
+.advice-state { display: flex; align-items: center; gap: 9px; color: var(--text-muted); font-size: 13.5px; }
+
+.spinner {
+  width: 13px; height: 13px; flex: none;
+  border: 2px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .spinner { animation-duration: 2.4s; } }
+
+/* --- tables ------------------------------------------------------------- */
+
+.table-wrap { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 14px; }
+th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--grid); }
+th {
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+tbody tr:last-child td { border-bottom: 0; }
+tbody tr:hover { background: var(--hover-wash); }
+.row-tools { display: flex; gap: 6px; justify-content: flex-end; }
+
+/* --- croquettes --------------------------------------------------------- */
+
+.kibble-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 14px;
+}
+.kibble-card { gap: 10px; padding: 14px; }
+.kibble-card.is-archived { opacity: 0.62; }
+.kibble-name { font-size: 15px; font-weight: 600; }
+.kibble-meta { font-size: 12.5px; color: var(--text-muted); }
+.photo-strip { display: flex; gap: 6px; flex-wrap: wrap; }
+.photo-strip img {
+  width: 64px; height: 64px;
+  object-fit: cover;
+  border-radius: 7px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+}
+.photo-picker { display: flex; gap: 8px; flex-wrap: wrap; align-items: flex-start; }
+.photo-slot { position: relative; }
+.photo-slot img { width: 76px; height: 76px; object-fit: cover; border-radius: 8px; border: 1px solid var(--border); }
+.photo-remove {
+  position: absolute; top: -6px; right: -6px;
+  width: 20px; height: 20px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--surface-1);
+  color: var(--bad);
+  font-size: 13px; line-height: 1;
+  cursor: pointer;
+}
+.photo-add {
+  width: 76px; height: 76px;
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  background: var(--surface-2);
+  color: var(--text-muted);
+  font-size: 22px;
+  cursor: pointer;
+}
+.badge {
+  font-size: 11px;
+  font-weight: 500;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--text-secondary);
+}
+
+/* --- toast -------------------------------------------------------------- */
+
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: calc(18px + var(--tabbar-h, 0px) + env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  z-index: 70;
+  max-width: min(92vw, 420px);
+  background: var(--text-primary);
+  color: var(--page);
+  font-size: 13.5px;
+  padding: 9px 14px;
+  border-radius: 9px;
+  box-shadow: 0 6px 18px rgba(16, 21, 26, 0.22);
+}
+
+/* --- phone -------------------------------------------------------------- */
+
+@media (max-width: 680px) {
+  main { padding: 14px; }
+  .topbar { padding: 8px 14px; padding-top: calc(8px + env(safe-area-inset-top) + var(--ios-blur-gap)); }
+  .topbar-actions { gap: 6px; }
+
+  /* The view switcher becomes a tab bar pinned to the bottom, where a thumb
+     actually reaches. --tabbar-h keeps the toast clear of it. */
+  .views {
+    position: fixed;
+    left: 0; right: 0; bottom: 0;
+    z-index: 30;
+    border-radius: 0;
+    border: 0;
+    border-top: 1px solid var(--border);
+    padding: 6px 10px calc(6px + env(safe-area-inset-bottom));
+    justify-content: space-around;
+    flex-wrap: nowrap;
+  }
+  .views button { flex: 1; text-align: center; padding: 8px 4px; }
+  body { padding-bottom: calc(var(--tabbar-h, 56px) + env(safe-area-inset-bottom)); }
+  .tile-hero .tile-value { font-size: 26px; }
+}

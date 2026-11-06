@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Poids du chien</title>
+<meta name="description" content="Suivi du poids, des croquettes et de la ration">
+<meta name="theme-color" content="#f7f8f9" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0e1216" media="(prefers-color-scheme: dark)">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Poids">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/icons/icon-180.png">
+<link rel="icon" href="/icons/icon-192.png">
+<link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="topbar-lead">
+    <h1 class="brand" id="brand">Poids</h1>
+    <span class="brand-sub" id="brand-sub"></span>
+  </div>
+  <!-- Four screens rather than one scrolling page: the dashboard answers
+       "where are we", the other three are where you type. They share no
+       state beyond the data itself. -->
+  <nav class="segmented views" id="views" aria-label="Écran"></nav>
+  <div class="topbar-actions">
+    <button type="button" id="new-btn" class="btn btn-primary">Peser</button>
+    <button type="button" id="theme-btn" class="btn btn-icon"
+            aria-label="Changer de thème" title="Changer de thème">
+      <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true">
+        <path d="M8 1.5a6.5 6.5 0 1 0 0 13Z" fill="currentColor"/>
+        <circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" stroke-width="1.4"/>
+      </svg>
+    </button>
+  </div>
+</header>
+
+<main id="main">
+  <div class="view" id="view-dashboard"></div>
+  <div class="view" id="view-weights" hidden></div>
+  <div class="view" id="view-kibbles" hidden></div>
+  <div class="view" id="view-profile" hidden></div>
+</main>
+
+<footer class="foot"><span id="foot-note"></span></footer>
+
+<div class="tooltip" id="tooltip" role="status" aria-live="off" hidden></div>
+<div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+
+<script src="/charts.js"></script>
+<script src="/app.js"></script>
+</body>
+</html>

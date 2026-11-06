@@ -1,0 +1,11 @@
+{
+  "name": "Kali",
+  "breed": "Berger australien",
+  "birth_date": "2022-12-05",
+  "sex": "F",
+  "neutered": false,
+  "activity": "actif",
+  "exercise": "Au moins 3,2 km de marche tous les jours, plus 1 à 2 petites sorties hygiéniques (20 minutes au total).",
+  "target_weight": null,
+  "notes": ""
+}
