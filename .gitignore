@@ -6,3 +6,7 @@ data/*.bak.db
 data/images/
 logs/
 __pycache__/
+
+# The VAPID private key. Rotating it silently kills every
+# subscription already on a phone — back it up, never commit it.
+data/vapid.json

@@ -53,7 +53,7 @@ Profil.
 ### Lancer
 
 ```bash
-./venv/bin/python -m app.cli serve        # http://127.0.0.1:8740
+./venv/bin/python -m app.cli serve        # http://127.0.0.1:8760
 ```
 
 ---
@@ -83,7 +83,7 @@ page est gratuit, corriger une pesée régénère.
 | `DOG_CLAUDE_BIN` | `which claude` | chemin du binaire |
 | `DOG_CLAUDE_MODEL` | `opus` | modèle passé à `--model` |
 | `DOG_ADVICE_TIMEOUT` | `180` | secondes avant d'abandonner |
-| `DOG_PORT` | `8740` | port du serveur |
+| `DOG_PORT` | `8760` | port du serveur |
 | `DOG_DB` | `data/dog.db` | base SQLite |
 
 ---
@@ -122,13 +122,52 @@ Pour l'atteindre depuis le téléphone, en HTTPS, sans rien ouvrir sur
 Internet :
 
 ```bash
-tailscale serve --bg 8740
+tailscale serve --bg 8760
 tailscale serve status
 ```
 
 ---
 
-## 5. Après avoir modifié le front
+## 5. Les rappels de pesée
+
+Un job launchd tourne chaque matin à 9 h et demande *depuis combien de temps
+le chien n'a pas été pesé*, pas *combien de temps s'est écoulé depuis le
+dernier rappel*. C'est la différence entre un rappel et un minuteur : peser en
+avance repousse le rappel suivant tout seul, et peser en retard ne décale rien.
+
+```bash
+./venv/bin/python -m app.cli remind          # ce que le job décide, et pourquoi
+./venv/bin/python -m app.cli remind --force  # envoyer quand même
+./venv/bin/python -m app.cli push            # appareils abonnés
+./venv/bin/python -m app.cli push --test     # notification de test
+```
+
+Une fois le seuil franchi, il reste franchi tous les matins — d'où
+`REMIND_REPEAT_DAYS` : un rappel tous les 3 jours, pas un réveil quotidien.
+
+| Variable | Défaut | |
+|---|---|---|
+| `DOG_REMIND_DAYS` | `21` | délai avant rappel |
+| `DOG_REMIND_REPEAT_DAYS` | `3` | délai minimum entre deux rappels |
+| `DOG_REMIND_HOUR` | `9` | heure du job (à l'installation) |
+| `DOG_VAPID_SUBJECT` | `mailto:…` | identifie l'émetteur au service de push |
+
+### S'abonner depuis le téléphone
+
+Web Push n'arrive sur iOS que pour une PWA **ajoutée à l'écran d'accueil**, et
+seulement en HTTPS — d'où Tailscale. Ouvrez l'app, *Profil* → **Activer les
+rappels**. iOS ne demande la permission qu'une fois : si elle est refusée, il
+faut la rétablir dans les réglages de l'app, le bouton ne peut plus la
+redemander.
+
+> **`data/vapid.json` est une clé privée.** Elle est exclue du dépôt et doit
+> être sauvegardée : la regénérer invalide silencieusement tous les
+> abonnements déjà posés sur les téléphones — les envois cessent simplement
+> d'arriver, sans erreur.
+
+---
+
+## 6. Après avoir modifié le front
 
 Le service worker sert la coquille (HTML, CSS, JS) depuis le cache en premier,
 donc **modifier un fichier de `static/` ne suffit pas** : il faut monter
@@ -138,7 +177,7 @@ poids périmé est pire que pas de poids.
 
 ---
 
-## 6. Notes de conception
+## 7. Notes de conception
 
 **Une pesée par jour.** `weights.date` est `UNIQUE` : remonter sur la balance
 le même après-midi est une correction, pas deux faits. L'écriture fait un

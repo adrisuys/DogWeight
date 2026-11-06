@@ -108,6 +108,18 @@ CREATE TABLE IF NOT EXISTS advice (
     updated_at    TEXT    NOT NULL
 );
 
+-- One row per phone that asked to be reminded. Keyed by endpoint, so
+-- re-subscribing after a reinstall corrects the row instead of earning you a
+-- second notification per reminder.
+CREATE TABLE IF NOT EXISTS push_subscriptions (
+    endpoint    TEXT PRIMARY KEY,
+    p256dh      TEXT NOT NULL,
+    auth        TEXT NOT NULL,
+    created_at  TEXT NOT NULL,
+    last_sent   TEXT,
+    last_error  TEXT NOT NULL DEFAULT ''
+);
+
 CREATE TABLE IF NOT EXISTS meta (
     key   TEXT PRIMARY KEY,
     value TEXT

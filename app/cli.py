@@ -10,7 +10,8 @@ import zipfile
 from datetime import date, datetime
 from pathlib import Path
 
-from . import advice, db, images, kibbles, profile as profile_mod, weights
+from . import (advice, db, images, kibbles, profile as profile_mod, push,
+               reminders, weights)
 from .config import DATA_DIR, DB_PATH, IMAGES_DIR, WEB_PORT
 from .errors import BadRequest, NotFound
 
@@ -147,6 +148,65 @@ def cmd_seed(args) -> int:
     return 0
 
 
+def cmd_remind(args) -> int:
+    """Send the weigh-in reminder if it is due. This is the launchd job.
+
+    Prints what it decided either way: a cron job that only speaks when it
+    acts is a cron job nobody can debug three weeks later.
+    """
+    db.init_db()
+    result = reminders.run(force=args.force)
+    info = reminders.state()
+
+    if result["last_weighing"]:
+        print(f"Dernière pesée : {result['last_weighing']} "
+              f"({result['days_since']} jours)")
+        print(f"Prochain rappel à partir du {result['due_date']} "
+              f"(tous les {result['every_days']} jours)")
+    else:
+        print("Aucune pesée enregistrée.")
+    print(f"Appareils abonnés : {result['subscriptions']}")
+
+    action = result["action"]
+    if action == "not-due":
+        print("→ Pas encore l'heure.")
+    elif action == "too-soon":
+        print(f"→ Déjà rappelé le {result['last_reminder']}, on attend.")
+    elif action == "no-subscribers":
+        print("→ Dû, mais aucun appareil abonné. Activez les rappels dans l'app.")
+        return 1
+    else:
+        print(f"→ Envoyé à {result['sent']} appareil(s)"
+              + (f", {result['removed']} abonnement(s) périmé(s) retiré(s)" if result["removed"] else ""))
+        for failure in result["failed"]:
+            print(f"   échec : {failure['error']}", file=sys.stderr)
+        if not result["sent"]:
+            return 1
+    return 0
+
+
+def cmd_push(args) -> int:
+    """Inspect the subscriptions, or send a test notification."""
+    db.init_db()
+    if args.test:
+        result = push.send("Test", "Si tu lis ça, les rappels arriveront bien ici.",
+                           tag="test")
+        print(f"Envoyé à {result['sent']} appareil(s).")
+        for failure in result["failed"]:
+            print(f"  échec : {failure['error']}", file=sys.stderr)
+        return 0 if result["sent"] else 1
+
+    state = push.status()
+    print(f"Clé publique VAPID : {state['public_key']}")
+    print(f"{state['count']} appareil(s) abonné(s)")
+    for device in state["devices"]:
+        host = device["endpoint"].split("/")[2]
+        print(f"  {host}  abonné le {device['created_at']}"
+              + (f", dernier envoi {device['last_sent']}" if device["last_sent"] else "")
+              + (f"  ⚠ {device['last_error']}" if device["last_error"] else ""))
+    return 0
+
+
 def cmd_backup(args) -> int:
     if not DB_PATH.exists():
         print("Rien à sauvegarder pour l'instant.", file=sys.stderr)
@@ -273,6 +333,15 @@ def main(argv: list[str] | None = None) -> int:
     p_seed.add_argument("--replace", action="store_true",
                         help="écraser un profil existant")
     p_seed.set_defaults(func=cmd_seed)
+
+    p_remind = sub.add_parser("remind", help="envoyer le rappel de pesée s'il est dû")
+    p_remind.add_argument("--force", action="store_true",
+                          help="envoyer même si ce n'est pas dû")
+    p_remind.set_defaults(func=cmd_remind)
+
+    p_push = sub.add_parser("push", help="appareils abonnés aux rappels")
+    p_push.add_argument("--test", action="store_true", help="envoyer une notification de test")
+    p_push.set_defaults(func=cmd_push)
 
     sub.add_parser("backup", help="copier la base et les photos").set_defaults(func=cmd_backup)
 

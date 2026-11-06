@@ -877,6 +877,143 @@
     view.appendChild(grid);
   }
 
+  /* --- rappels ----------------------------------------------------------- */
+
+  // The browser wants the application server key as a Uint8Array, and the
+  // server sends it as unpadded base64url — which atob() does not take.
+  function decodeKey(base64url) {
+    const padded = base64url.replace(/-/g, '+').replace(/_/g, '/')
+      + '='.repeat((4 - (base64url.length % 4)) % 4);
+    const raw = atob(padded);
+    return Uint8Array.from(raw, (c) => c.charCodeAt(0));
+  }
+
+  const pushSupported = () => 'serviceWorker' in navigator
+    && 'PushManager' in window && 'Notification' in window;
+
+  async function currentSubscription() {
+    if (!pushSupported()) return null;
+    const registration = await navigator.serviceWorker.ready;
+    return registration.pushManager.getSubscription();
+  }
+
+  async function enableReminders(publicKey) {
+    // iOS only grants this from a user gesture, and only once: a denied
+    // permission cannot be re-asked from script, which is why the UI says so
+    // rather than offering the button again.
+    const permission = await Notification.requestPermission();
+    if (permission !== 'granted') {
+      throw new Error(permission === 'denied'
+        ? 'Notifications refusées. Autorisez-les dans les réglages de l’app, puis réessayez.'
+        : 'Notifications non autorisées.');
+    }
+    const registration = await navigator.serviceWorker.ready;
+    const subscription = await registration.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: decodeKey(publicKey),
+    });
+    await api('/api/push/subscribe', {
+      method: 'POST', body: JSON.stringify(subscription.toJSON()),
+    });
+  }
+
+  async function disableReminders() {
+    const subscription = await currentSubscription();
+    if (!subscription) return;
+    await api('/api/push/unsubscribe', {
+      method: 'POST', body: JSON.stringify({ endpoint: subscription.endpoint }),
+    });
+    await subscription.unsubscribe();
+  }
+
+  function reminderCard(reminder) {
+    const card = el('div', { class: 'card' },
+      el('div', { class: 'card-head' },
+        el('h2', { text: 'Rappel de pesée' }),
+        el('span', {
+          class: 'card-sub',
+          text: `tous les ${reminder.every_days} jours`,
+        }),
+      ),
+    );
+
+    card.appendChild(el('p', {
+      class: 'card-sub',
+      text: reminder.last_weighing
+        ? `Dernière pesée ${daysAgo(reminder.last_weighing)}. `
+          + (reminder.due
+            ? 'C’est le moment.'
+            : `Prochain rappel à partir du ${longDate(reminder.due_date)}.`)
+        : 'Le rappel démarre à la première pesée.',
+    }));
+
+    if (!pushSupported()) {
+      card.appendChild(el('p', {
+        class: 'empty-note',
+        text: 'Ce navigateur ne gère pas les notifications. Sur iPhone, il faut '
+          + 'd’abord ajouter l’app à l’écran d’accueil.',
+      }));
+      return card;
+    }
+
+    const state = el('p', { class: 'card-sub' });
+    const actions = el('div', { class: 'form-actions' });
+    card.append(state, actions);
+
+    // The server knows how many devices are subscribed; only the browser
+    // knows whether *this* one is. Both are worth saying.
+    const paint = async () => {
+      clear(actions);
+      const subscription = await currentSubscription();
+      const others = Math.max(0, reminder.subscriptions - (subscription ? 1 : 0));
+      state.textContent = subscription
+        ? 'Les rappels sont actifs sur cet appareil.'
+          + (others ? ` (${others} autre${others > 1 ? 's' : ''})` : '')
+        : reminder.subscriptions
+          ? `Pas sur cet appareil — ${reminder.subscriptions} autre(s) appareil(s) abonné(s).`
+          : 'Aucun appareil abonné.';
+
+      actions.appendChild(el('button', {
+        class: subscription ? 'btn' : 'btn btn-primary',
+        type: 'button',
+        text: subscription ? 'Désactiver sur cet appareil' : 'Activer les rappels',
+        onclick: async (event) => {
+          const button = event.currentTarget;
+          button.disabled = true;
+          try {
+            if (subscription) {
+              await disableReminders();
+              toast('Rappels désactivés.');
+            } else {
+              await enableReminders(reminder.public_key);
+              toast('Rappels activés.');
+            }
+            await refresh();
+          } catch (error) {
+            toast(error.message);
+            button.disabled = false;
+          }
+        },
+      }));
+
+      if (subscription) {
+        actions.appendChild(el('button', {
+          class: 'btn btn-sm', type: 'button', text: 'Envoyer un test',
+          onclick: async () => {
+            try {
+              const result = await api('/api/push/test', { method: 'POST' });
+              toast(result.sent
+                ? `Test envoyé à ${result.sent} appareil(s).`
+                : 'Aucun appareil joignable.');
+            } catch (error) { toast(error.message); }
+          },
+        }));
+      }
+    };
+    paint();
+    return card;
+  }
+
   /* ======================================================================
      Profil
      ====================================================================== */
@@ -993,6 +1130,8 @@
       el('div', { class: 'card-head' }, el('h2', { text: 'Fiche du chien' })),
       form,
     ));
+
+    if (data.reminder) view.appendChild(reminderCard(data.reminder));
   }
 
   /* ======================================================================

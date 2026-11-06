@@ -12,7 +12,7 @@
      names are content hashes and can never mean anything else.
    ========================================================================== */
 
-const VERSION = 'dog-v1';
+const VERSION = 'dog-v2';
 const SHELL = `${VERSION}-shell`;
 const PHOTOS = `${VERSION}-photos`;
 
@@ -85,5 +85,50 @@ self.addEventListener('fetch', (event) => {
       }
       throw error;
     }
+  })());
+});
+
+/* --------------------------------------------------------------------------
+   Push: the weigh-in reminder.
+
+   The payload is built by the server and shown as-is. `tag` collapses
+   repeats — a second reminder replaces the first in the notification shade
+   instead of stacking, because two copies of "you haven't weighed the dog"
+   say nothing the first one didn't.
+   -------------------------------------------------------------------------- */
+
+self.addEventListener('push', (event) => {
+  let payload = {};
+  // A push with no body, or a body that isn't ours, still has to produce a
+  // notification: iOS revokes the push permission from a worker that stays
+  // silent after being woken.
+  try { payload = event.data ? event.data.json() : {}; } catch (_) { /* below */ }
+
+  const title = payload.title || 'Poids du chien';
+  event.waitUntil(self.registration.showNotification(title, {
+    body: payload.body || '',
+    tag: payload.tag || 'dog',
+    renotify: true,
+    icon: '/icons/icon-192.png',
+    badge: '/icons/icon-192.png',
+    data: { url: payload.url || '/' },
+  }));
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const target = (event.notification.data && event.notification.data.url) || '/';
+  event.waitUntil((async () => {
+    const clients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+    // Focus the app if it is already open rather than opening a second copy,
+    // and take it to the screen the notification was about.
+    for (const client of clients) {
+      if (new URL(client.url).origin === self.location.origin) {
+        await client.focus();
+        if ('navigate' in client) await client.navigate(target);
+        return;
+      }
+    }
+    await self.clients.openWindow(target);
   })());
 });

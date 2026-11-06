@@ -17,7 +17,7 @@ STATIC_DIR = ROOT / "static"
 DB_PATH = Path(os.environ.get("DOG_DB", DATA_DIR / "dog.db"))
 IMAGES_DIR = Path(os.environ.get("DOG_IMAGES", DATA_DIR / "images"))
 
-WEB_PORT = int(os.environ.get("DOG_PORT", "8740"))
+WEB_PORT = int(os.environ.get("DOG_PORT", "8760"))
 
 # Photos of a croquette bag, taken on a phone or dragged in from a desktop.
 # The browser downscales before sending, so the cap is generous for a real
@@ -55,6 +55,27 @@ ADVICE_TIMEOUT_S = int(os.environ.get("DOG_ADVICE_TIMEOUT", "180"))
 # How much history the advice prompt carries. Long enough to see a trend and a
 # couple of food changes, short enough that the prompt stays small.
 ADVICE_HISTORY = 40
+
+# --------------------------------------------------------------------------
+# Reminders
+# --------------------------------------------------------------------------
+# Web Push reaches an installed PWA on iOS 16.4+ over HTTPS, which Tailscale
+# already provides — so the reminder gets to the phone with no account and no
+# third-party service.
+
+VAPID_PATH = DATA_DIR / "vapid.json"
+
+# Apple rejects a VAPID JWT whose subject is neither a mailto: nor an https:
+# URL. It identifies the sender to the push service; nothing is sent to it.
+VAPID_SUBJECT = os.environ.get("DOG_VAPID_SUBJECT", "mailto:adrien@tsc-experts.com")
+
+# How long between weighings before the reminder fires.
+REMIND_EVERY_DAYS = int(os.environ.get("DOG_REMIND_DAYS", "21"))
+
+# Once it is due it stays due, and the checker runs daily — so without this
+# you would be reminded every morning until you gave in. One nudge every
+# three days is a reminder; one every day is an alarm clock.
+REMIND_REPEAT_DAYS = int(os.environ.get("DOG_REMIND_REPEAT_DAYS", "3"))
 
 # --------------------------------------------------------------------------
 # Vocabulary

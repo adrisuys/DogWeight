@@ -9,7 +9,8 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from . import advice, db, images, kibbles, profile as profile_mod, weights
+from . import (advice, db, images, kibbles, profile as profile_mod, push,
+               reminders, weights)
 from .config import ACTIVITY_LEVELS, MAX_IMAGE_BYTES, STATIC_DIR
 from .errors import BadRequest, NotFound
 
@@ -40,6 +41,16 @@ class ProfileIn(BaseModel):
     exercise: str = ""
     target_weight: float | str | None = None
     notes: str = ""
+
+
+class SubscriptionIn(BaseModel):
+    """Exactly what PushManager.subscribe() hands back, forwarded as-is."""
+    endpoint: str = ""
+    keys: dict = Field(default_factory=dict)
+
+
+class EndpointIn(BaseModel):
+    endpoint: str = ""
 
 
 class TargetIn(BaseModel):
@@ -103,6 +114,7 @@ def api_dashboard(response: Response):
         "periods": weights.kibble_periods(entries),
         "advice": advice.latest(),
         "activity_levels": ACTIVITY_LEVELS,
+        "reminder": reminders.state(),
     }
 
 
@@ -221,6 +233,38 @@ def api_advice_retry(entry_id: int, background: BackgroundTasks):
     advice.mark_pending(entry_id)
     background.add_task(advice.generate, entry_id, True)
     return {"status": "pending", "weight_id": entry_id}
+
+
+# --------------------------------------------------------------------------
+# Rappels
+# --------------------------------------------------------------------------
+# The public VAPID key is deliberately public — it is the browser's
+# `applicationServerKey`, and a subscription cannot be created without it.
+
+@app.get("/api/push")
+def api_push(response: Response):
+    _fresh(response)
+    return {**push.status(), "reminder": reminders.state()}
+
+
+@app.post("/api/push/subscribe")
+def api_push_subscribe(payload: SubscriptionIn):
+    return push.subscribe(payload.model_dump())
+
+
+@app.post("/api/push/unsubscribe")
+def api_push_unsubscribe(payload: EndpointIn):
+    return push.unsubscribe(payload.endpoint)
+
+
+@app.post("/api/push/test")
+def api_push_test():
+    """Prove the whole chain works without waiting three weeks for it to."""
+    return push.send(
+        "Test",
+        "Si tu lis ça, les rappels de pesée arriveront bien ici.",
+        tag="test",
+    )
 
 
 # --------------------------------------------------------------------------
