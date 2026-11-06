@@ -100,3 +100,54 @@ MAX_SAFE_LOSS_RATIO_PER_WEEK = 0.02
 
 # Below this, a difference between two weighings is the scale, not the dog.
 WEIGHT_NOISE_KG = 0.1
+
+# --------------------------------------------------------------------------
+# Vaccins
+# --------------------------------------------------------------------------
+# What a vaccine protects against, by the letters printed on the vials —
+# "DHPPi/L" is not a name, it is this list. Kept as codes rather than one
+# free-text field because the status at the top of the Vaccins card is
+# computed *per disease*: Kali is never "vaccinated", she is covered against
+# rabies until one date and against leptospirosis until another.
+DISEASES: dict[str, str] = {
+    "R":  "Rage",
+    "D":  "Maladie de Carré",
+    "H":  "Hépatite de Rubarth",
+    "P":  "Parvovirose",
+    "Pi": "Parainfluenza",
+    "L":  "Leptospirose",
+    "Bb": "Toux du chenil",
+}
+
+# The products a Belgian vet actually sticks in the booklet, with what each
+# covers. Only a suggestion in the form — typing the name fills the diseases,
+# which stay editable — so an unlisted vaccine is never refused.
+KNOWN_VACCINES: dict[str, list[str]] = {
+    "Nobivac Rabies":          ["R"],
+    "Rabisin":                 ["R"],
+    "Nobivac DP Plus":         ["D", "P"],
+    "Nobivac Puppy DP":        ["D", "P"],
+    "Nobivac DHPPi":           ["D", "H", "P", "Pi"],
+    "Nobivac Pi":              ["Pi"],
+    "Nobivac L4":              ["L"],
+    "Nobivac KC":              ["Bb", "Pi"],
+    "Canigen DHPPi":           ["D", "H", "P", "Pi"],
+    "Canigen DHPPi/L":         ["D", "H", "P", "Pi", "L"],
+    "Eurican DAPPi":           ["D", "H", "P", "Pi"],
+    "Eurican L4":              ["L"],
+    "Eurican Pneumo":          ["Bb", "Pi"],
+    "Versican Plus DHPPi/L4":  ["D", "H", "P", "Pi", "L"],
+    "Versican Plus L4":        ["L"],
+}
+
+# How far ahead "à renouveler bientôt" starts. A month is enough to get a
+# vet's appointment, and short enough not to be orange all year.
+VACCINE_SOON_DAYS = 30
+
+# When the morning job sends a vaccine reminder: once a month before the end
+# of cover, once a week before, and once the day it lapses — then every
+# VACCINE_EXPIRED_REPEAT_DAYS for as long as nothing new is written in the
+# booklet. Each step goes out once; entering the booster resets it all,
+# because the reminder is keyed on the validity date it was about.
+VACCINE_REMIND_STAGES = (VACCINE_SOON_DAYS, 7)
+VACCINE_EXPIRED_REPEAT_DAYS = 30

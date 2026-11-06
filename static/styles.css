@@ -455,6 +455,48 @@ tbody tr:hover { background: var(--hover-wash); }
   color: var(--text-secondary);
 }
 
+/* --- vaccins ------------------------------------------------------------ */
+
+.vacc-statuses { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.vacc-status {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas: "disease badge" "until badge";
+  column-gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--grid);
+}
+.vacc-status:last-child { border-bottom: 0; }
+.vacc-disease { grid-area: disease; font-weight: 600; font-size: 14px; }
+.vacc-until { grid-area: until; font-size: 12.5px; color: var(--text-muted); }
+.vacc-status .badge { grid-area: badge; align-self: center; }
+.badge.is-good { color: var(--good); }
+.badge.is-warn { color: var(--warn); }
+.badge.is-bad  { color: var(--bad); }
+
+.vacc-history summary { cursor: pointer; font-size: 14px; font-weight: 500; color: var(--accent); }
+.vacc-visits { display: flex; flex-direction: column; gap: 16px; margin-top: 12px; }
+.vacc-visit { display: flex; flex-direction: column; gap: 6px; }
+.vacc-visit-head { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
+.vacc-date { font-weight: 600; font-size: 14px; }
+.vacc-shots { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.vacc-shot {
+  width: 100%;
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px;
+  text-align: left;
+  font: inherit; color: inherit;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-2);
+  cursor: pointer;
+}
+.vacc-shot:hover { background: var(--hover-wash); }
+.vacc-name { font-weight: 500; font-size: 14px; }
+.vacc-codes { font-size: 12px; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+.vacc-meta { flex-basis: 100%; font-size: 12px; color: var(--text-muted); }
+.vacc-boxes { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 6px 14px; }
+
 /* --- modal sheet -------------------------------------------------------- */
 /* The weighing form. A centred card on a desktop; a bottom sheet on a phone,
    where the thumb is and where the keyboard pushes everything up anyway. */

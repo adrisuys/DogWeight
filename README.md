@@ -128,7 +128,7 @@ tailscale serve status
 
 ---
 
-## 5. Les rappels de pesée
+## 5. Les rappels (pesée et vaccins)
 
 Un job launchd tourne chaque matin à 9 h et demande *depuis combien de temps
 le chien n'a pas été pesé*, pas *combien de temps s'est écoulé depuis le
@@ -136,13 +136,20 @@ dernier rappel*. C'est la différence entre un rappel et un minuteur : peser en
 avance repousse le rappel suivant tout seul, et peser en retard ne décale rien.
 
 ```bash
-./venv/bin/python -m app.cli remind          # ce que le job décide, et pourquoi
-./venv/bin/python -m app.cli remind --force  # envoyer quand même
+./venv/bin/python -m app.cli remind            # ce que le job décide, et pourquoi
+./venv/bin/python -m app.cli remind --dry-run  # idem, sans rien envoyer
+./venv/bin/python -m app.cli remind --force    # envoyer quand même
 ./venv/bin/python -m app.cli push            # appareils abonnés
 ./venv/bin/python -m app.cli push --test     # notification de test
 ```
 
-Une fois le seuil franchi, il reste franchi tous les matins — d'où
+Le même job surveille le carnet de vaccination, maladie par maladie : une
+notification 30 jours avant la fin de validité notée par le vétérinaire, une
+autre 7 jours avant, une le jour où elle est dépassée, puis tous les 30 jours
+tant que rien de plus récent n'est saisi. Chaque étape ne part qu'une fois ;
+saisir le rappel dans l'app change la date de validité et remet tout à zéro.
+
+Une fois le seuil de pesée franchi, il reste franchi tous les matins — d'où
 `REMIND_REPEAT_DAYS` : un rappel tous les 3 jours, pas un réveil quotidien.
 
 | Variable | Défaut | |

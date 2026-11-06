@@ -1,7 +1,7 @@
 #!/bin/bash
 # Install the two launchd jobs:
 #   * the web server (restarted on crash and on login)
-#   * the daily weigh-in reminder check
+#   * the daily reminder check (weigh-in and vaccines)
 #
 #   ./deploy/install.sh          install / reinstall
 #   ./deploy/install.sh remove   uninstall

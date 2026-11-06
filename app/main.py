@@ -10,7 +10,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from . import (advice, db, images, kibbles, profile as profile_mod, push,
-               reminders, weights)
+               reminders, vaccines, weights)
 from .config import ACTIVITY_LEVELS, MAX_IMAGE_BYTES, STATIC_DIR
 from .errors import BadRequest, NotFound
 
@@ -67,6 +67,17 @@ class KibbleIn(BaseModel):
     photos: list[str] = Field(default_factory=list)
 
 
+class VaccinationIn(BaseModel):
+    date: str = ""
+    vaccine: str = ""
+    diseases: list[str] | str = Field(default_factory=list)
+    batch: str = ""
+    valid_from: str | None = None
+    valid_until: str | None = None
+    vet: str = ""
+    notes: str = ""
+
+
 class WeightIn(BaseModel):
     date: str = ""
     weight: float | str | None = None
@@ -116,6 +127,7 @@ def api_dashboard(response: Response):
         "advice": advice.latest(),
         "activity_levels": ACTIVITY_LEVELS,
         "reminder": reminders.state(),
+        "vaccines": vaccines.overview(),
     }
 
 
@@ -234,6 +246,32 @@ def api_advice_retry(entry_id: int, background: BackgroundTasks):
     advice.mark_pending(entry_id)
     background.add_task(advice.generate, entry_id, True)
     return {"status": "pending", "weight_id": entry_id}
+
+
+# --------------------------------------------------------------------------
+# Vaccins
+# --------------------------------------------------------------------------
+
+@app.get("/api/vaccinations")
+def api_vaccinations(response: Response):
+    _fresh(response)
+    return vaccines.overview()
+
+
+@app.post("/api/vaccinations", status_code=201)
+def api_vaccination_create(payload: VaccinationIn):
+    return vaccines.create_vaccination(payload.model_dump())
+
+
+@app.put("/api/vaccinations/{vaccination_id}")
+def api_vaccination_update(vaccination_id: int, payload: VaccinationIn):
+    return vaccines.update_vaccination(vaccination_id, payload.model_dump())
+
+
+@app.delete("/api/vaccinations/{vaccination_id}")
+def api_vaccination_delete(vaccination_id: int):
+    vaccines.delete_vaccination(vaccination_id)
+    return {"deleted": vaccination_id}
 
 
 # --------------------------------------------------------------------------

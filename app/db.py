@@ -121,6 +121,29 @@ CREATE TABLE IF NOT EXISTS push_subscriptions (
     last_error  TEXT NOT NULL DEFAULT ''
 );
 
+-- The vaccination booklet, one row per product injected. A vet visit where
+-- three stickers went on one line of the booklet is three rows sharing a
+-- date: each product has its own batch number and covers its own diseases,
+-- and it is per disease that "still covered?" is answered.
+CREATE TABLE IF NOT EXISTS vaccinations (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    date         TEXT    NOT NULL,                -- ISO date of the injection
+    vaccine      TEXT    NOT NULL,                -- "Nobivac Rabies"
+    diseases     TEXT    NOT NULL DEFAULT '',     -- codes, "D,H,P,Pi" — see config.DISEASES
+    batch        TEXT    NOT NULL DEFAULT '',     -- lot number off the sticker
+    -- Only rabies has a "valable depuis" in the booklet (21 days after a
+    -- first injection) — it is what a border checks, so it is kept.
+    valid_from   TEXT,
+    valid_until  TEXT,                            -- NULL when the vet left it blank
+    vet          TEXT    NOT NULL DEFAULT '',
+    notes        TEXT    NOT NULL DEFAULT '',
+    created_at   TEXT    NOT NULL,
+    updated_at   TEXT    NOT NULL
+);
+
+-- The same product twice on the same day is a typo, not a double dose.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_vaccinations_day ON vaccinations(date, vaccine);
+
 CREATE TABLE IF NOT EXISTS meta (
     key   TEXT PRIMARY KEY,
     value TEXT

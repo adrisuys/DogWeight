@@ -1,4 +1,4 @@
-"""Command line: serve, status, add, seed, advice, backup, sweep."""
+"""Command line: serve, status, add, seed, vaccines, advice, backup, sweep."""
 
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ from datetime import date, datetime
 from pathlib import Path
 
 from . import (advice, db, images, kibbles, profile as profile_mod, push,
-               reminders, weights)
+               reminders, vaccines, weights)
 from .config import DATA_DIR, DB_PATH, IMAGES_DIR, WEB_PORT
 from .errors import BadRequest, NotFound
 
@@ -54,6 +54,16 @@ def cmd_status(args) -> int:
         for food in foods:
             flag = " (archivée)" if food["archived"] else ""
             print(f"  {food['label']:<{width}}  {food['uses']:>3} pesées{flag}")
+
+    shots = vaccines.status(vaccines.list_vaccinations())
+    if shots:
+        print("\nVaccins :")
+        width = max(len(line["label"]) for line in shots)
+        for line in shots:
+            until = line["valid_until"] or "date non notée"
+            flag = {"expired": "  ⚠ expiré", "soon": "  ⚠ bientôt",
+                    "pending": "  (pas encore valable)"}.get(line["state"], "")
+            print(f"  {line['label']:<{width}}  jusqu'au {until}{flag}")
 
     hints = advice.latest()
     if hints:
@@ -148,15 +158,58 @@ def cmd_seed(args) -> int:
     return 0
 
 
+def cmd_vaccines(args) -> int:
+    """List the booklet, or import a transcription of it from JSON.
+
+    The file is a list of rows shaped like the API's (date, vaccine, diseases,
+    batch, valid_from, valid_until, vet, notes). Rows already in the base are
+    skipped, so the same file can be extended and re-imported.
+    """
+    db.init_db()
+    if args.import_file:
+        path = Path(args.import_file).expanduser().resolve()
+        if not path.exists():
+            print(f"Fichier introuvable : {path}", file=sys.stderr)
+            return 1
+        rows = json.loads(path.read_text())
+        if isinstance(rows, dict):
+            rows = rows.get("vaccinations", [])
+        added, skipped = vaccines.import_rows(rows)
+        print(f"{added} vaccin(s) ajouté(s), {skipped} déjà présent(s).\n")
+
+    shots = vaccines.list_vaccinations()
+    if not shots:
+        print("Aucun vaccin enregistré.")
+        return 0
+    for shot in shots:
+        until = f" → {shot['valid_until']}" if shot["valid_until"] else ""
+        codes = "/".join(shot["diseases"]) or "?"
+        print(f"  {shot['date']}  {shot['vaccine']:<24} {codes:<12} "
+              f"lot {shot['batch'] or '—':<10}{until}")
+    return 0
+
+
 def cmd_remind(args) -> int:
-    """Send the weigh-in reminder if it is due. This is the launchd job.
+    """Send the weigh-in and vaccine reminders if they are due. This is the
+    launchd job.
 
     Prints what it decided either way: a cron job that only speaks when it
     acts is a cron job nobody can debug three weeks later.
     """
     db.init_db()
-    result = reminders.run(force=args.force)
-    info = reminders.state()
+    weigh = _remind_weighing(args)
+    print()
+    shots = _remind_vaccines(args)
+    return weigh or shots
+
+
+def _remind_weighing(args) -> int:
+    print("— Pesée")
+    if args.dry_run:
+        result = reminders.state()
+        result["action"] = "dry-run"
+    else:
+        result = reminders.run(force=args.force)
 
     if result["last_weighing"]:
         print(f"Dernière pesée : {result['last_weighing']} "
@@ -168,7 +221,10 @@ def cmd_remind(args) -> int:
     print(f"Appareils abonnés : {result['subscriptions']}")
 
     action = result["action"]
-    if action == "not-due":
+    if action == "dry-run":
+        print("→ " + ("Dû — serait envoyé." if result["due"] else "Pas encore l'heure.")
+              + " (rien envoyé : --dry-run)")
+    elif action == "not-due":
         print("→ Pas encore l'heure.")
     elif action == "too-soon":
         print(f"→ Déjà rappelé le {result['last_reminder']}, on attend.")
@@ -178,6 +234,37 @@ def cmd_remind(args) -> int:
     else:
         print(f"→ Envoyé à {result['sent']} appareil(s)"
               + (f", {result['removed']} abonnement(s) périmé(s) retiré(s)" if result["removed"] else ""))
+        for failure in result["failed"]:
+            print(f"   échec : {failure['error']}", file=sys.stderr)
+        if not result["sent"]:
+            return 1
+    return 0
+
+
+def _remind_vaccines(args) -> int:
+    print("— Vaccins")
+    if args.dry_run:
+        due = reminders.vaccine_state()
+        if not due:
+            print("→ Rien à signaler.")
+            return 0
+        title, body = reminders._vaccine_message(due, profile_mod.get()["name"])
+        print(f"→ Serait envoyé (rien envoyé : --dry-run) :\n  {title}")
+        for line in body.splitlines():
+            print(f"  {line}")
+        return 0
+
+    result = reminders.run_vaccines(force=args.force)
+    action = result["action"]
+    if action == "not-due":
+        print("→ Rien à signaler.")
+    elif action == "no-subscribers":
+        print("→ Un rappel est dû, mais aucun appareil abonné.")
+        return 1
+    else:
+        print(f"→ Envoyé à {result['sent']} appareil(s) :\n  {result['title']}")
+        for line in result["body"].splitlines():
+            print(f"  {line}")
         for failure in result["failed"]:
             print(f"   échec : {failure['error']}", file=sys.stderr)
         if not result["sent"]:
@@ -334,9 +421,16 @@ def main(argv: list[str] | None = None) -> int:
                         help="écraser un profil existant")
     p_seed.set_defaults(func=cmd_seed)
 
-    p_remind = sub.add_parser("remind", help="envoyer le rappel de pesée s'il est dû")
+    p_vacc = sub.add_parser("vaccines", help="carnet de vaccination")
+    p_vacc.add_argument("--import", dest="import_file", metavar="FICHIER",
+                        help="ajouter les vaccins d'un fichier JSON")
+    p_vacc.set_defaults(func=cmd_vaccines)
+
+    p_remind = sub.add_parser("remind", help="envoyer les rappels (pesée, vaccins) s'ils sont dus")
     p_remind.add_argument("--force", action="store_true",
                           help="envoyer même si ce n'est pas dû")
+    p_remind.add_argument("--dry-run", action="store_true",
+                          help="dire ce qui serait envoyé, sans rien envoyer")
     p_remind.set_defaults(func=cmd_remind)
 
     p_push = sub.add_parser("push", help="appareils abonnés aux rappels")

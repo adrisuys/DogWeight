@@ -7,7 +7,7 @@
      #/            le tableau de bord : les chiffres, les deux courbes, les conseils
      #/pesees      toutes les pesées, en tableau — et le formulaire d'ajout
      #/croquettes  les types de croquettes, avec photos du sac
-     #/profil      la fiche du chien et le poids de forme
+     #/profil      la fiche du chien, le poids de forme et les vaccins
 
    Nothing is templated on the server and the DOM is built with `el()` rather
    than innerHTML: a brand name, a note and a hint from the model are all user
@@ -1122,6 +1122,252 @@
   }
 
   /* ======================================================================
+     Vaccins
+     ====================================================================== */
+
+  // The booklet holds one line per sticker; what you want to read first is
+  // per disease — "rage : jusqu'au 8 sept. 2028". So the card leads with that
+  // status, and the injections themselves follow, grouped by visit.
+  const VACC_STATE = {
+    ok: { text: 'à jour', cls: 'is-good' },
+    soon: { text: 'bientôt', cls: 'is-warn' },
+    expired: { text: 'expiré', cls: 'is-bad' },
+    pending: { text: 'pas encore valable', cls: 'is-warn' },
+    unknown: { text: 'date non notée', cls: '' },
+  };
+
+  function vaccineStatusLine(line) {
+    const meta = VACC_STATE[line.state];
+    let note;
+    if (!line.valid_until) note = `dernière injection le ${longDate(line.last_date)}`;
+    else if (line.state === 'expired') note = `expiré depuis le ${longDate(line.valid_until)}`;
+    else if (line.state === 'pending') note = `valable à partir du ${longDate(line.valid_from)}`;
+    else note = `jusqu’au ${longDate(line.valid_until)}`
+      + (line.state === 'soon' ? ` (dans ${line.days_left} j)` : '');
+    return el('li', { class: 'vacc-status' },
+      el('span', { class: 'vacc-disease', text: line.label }),
+      el('span', { class: 'vacc-until', text: note }),
+      el('span', { class: `badge ${meta.cls}`, text: meta.text }),
+    );
+  }
+
+  function vaccinesCard(data) {
+    const { vaccinations, status } = data;
+    const card = el('div', { class: 'card', id: 'vaccines' },
+      el('div', { class: 'card-head' },
+        el('h2', { text: 'Vaccins' }),
+        el('span', {
+          class: 'card-sub',
+          text: vaccinations.length
+            ? `${vaccinations.length} injection${vaccinations.length > 1 ? 's' : ''}` : '',
+        }),
+        el('button', {
+          class: 'btn btn-primary btn-sm', type: 'button', text: 'Ajouter',
+          onclick: () => openVaccineDialog(null),
+        }),
+      ),
+    );
+
+    if (!vaccinations.length) {
+      card.appendChild(el('p', {
+        class: 'empty-note',
+        text: 'Aucun vaccin. Recopiez le carnet ligne par ligne : une ligne par vignette.',
+      }));
+      return card;
+    }
+
+    card.appendChild(el('ul', { class: 'vacc-statuses' }, status.map(vaccineStatusLine)));
+    card.appendChild(el('p', {
+      class: 'card-sub',
+      text: 'Dates de validité telles que notées par le vétérinaire dans le carnet. '
+        + `Notification ${data.soon_days} jours puis 7 jours avant l’échéance, `
+        + 'puis tous les 30 jours tant qu’un vaccin reste expiré.',
+    }));
+
+    // One block per visit: the date, who signed, then every sticker of the day.
+    const visits = [];
+    for (const shot of vaccinations) {
+      const last = visits[visits.length - 1];
+      if (last && last.date === shot.date) last.shots.push(shot);
+      else visits.push({ date: shot.date, shots: [shot] });
+    }
+
+    const history = el('div', { class: 'vacc-visits' });
+    for (const visit of visits) {
+      const vets = [...new Set(visit.shots.map((s) => s.vet).filter(Boolean))].join(', ');
+      history.appendChild(el('div', { class: 'vacc-visit' },
+        el('div', { class: 'vacc-visit-head' },
+          el('span', { class: 'vacc-date', text: longDate(visit.date) }),
+          vets && el('span', { class: 'card-sub', text: vets }),
+        ),
+        el('ul', { class: 'vacc-shots' }, visit.shots.map((shot) => el('li', {},
+          el('button', {
+            class: 'vacc-shot', type: 'button',
+            'aria-label': `Modifier ${shot.vaccine} du ${longDate(shot.date)}`,
+            onclick: () => openVaccineDialog(shot),
+          },
+          el('span', { class: 'vacc-name', text: shot.vaccine }),
+          el('span', { class: 'vacc-codes', text: shot.diseases.join(' · ') || '—' }),
+          el('span', {
+            class: 'vacc-meta',
+            text: [
+              shot.batch ? `lot ${shot.batch}` : null,
+              shot.valid_until ? `valable jusqu’au ${shortDate(shot.valid_until)}` : null,
+            ].filter(Boolean).join(' · '),
+          }),
+          shot.notes && el('span', { class: 'vacc-meta', text: shot.notes })),
+        ))),
+      ));
+    }
+    card.appendChild(el('details', { class: 'vacc-history' },
+      el('summary', { text: `Historique (${visits.length} visite${visits.length > 1 ? 's' : ''})` }),
+      history,
+    ));
+    return card;
+  }
+
+  let vaccineDialog = null;
+
+  function openVaccineDialog(shot) {
+    const info = state.dashboard.vaccines;
+    if (!vaccineDialog) {
+      vaccineDialog = el('dialog', { class: 'sheet', 'aria-labelledby': 'vacc-title' });
+      vaccineDialog.addEventListener('click', (event) => {
+        if (event.target === vaccineDialog) vaccineDialog.close();
+      });
+      document.body.appendChild(vaccineDialog);
+    }
+    const editing = !!shot;
+    // A new line starts from the last visit's vet: it is nearly always the same.
+    const entry = shot || { date: today(), diseases: [], vet: info.vaccinations[0]?.vet || '' };
+    const error = el('p', { class: 'form-error field-wide' });
+
+    const productList = el('datalist', { id: 'vacc-products' },
+      Object.keys(info.known).map((name) => el('option', { value: name })));
+    const vetList = el('datalist', { id: 'vacc-vets' },
+      [...new Set(info.vaccinations.map((v) => v.vet).filter(Boolean))]
+        .map((name) => el('option', { value: name })));
+
+    const boxes = Object.entries(info.diseases).map(([code, label]) => el('label', { class: 'check' },
+      el('input', { type: 'checkbox', value: code, checked: entry.diseases.includes(code) }),
+      el('span', { text: `${label} (${code})` }),
+    ));
+    const checked = () => boxes.map((b) => b.querySelector('input')).filter((i) => i.checked).map((i) => i.value);
+
+    const name = el('input', { class: 'input', type: 'text', id: 'v-vaccine', required: true,
+      list: 'vacc-products', placeholder: 'Nobivac Rabies', value: entry.vaccine || '' });
+    // Picking a known product ticks what it covers — still editable after.
+    name.addEventListener('change', () => {
+      const covers = info.known[name.value.trim()];
+      if (!covers) return;
+      for (const box of boxes) box.querySelector('input').checked = covers.includes(box.querySelector('input').value);
+    });
+
+    const form = el('form', { class: 'form-grid', autocomplete: 'off' },
+      el('div', { class: 'field' },
+        el('label', { for: 'v-date', text: 'Date de vaccination' }),
+        el('input', { class: 'input', type: 'date', id: 'v-date', required: true,
+          value: entry.date || '', max: today() }),
+      ),
+      el('div', { class: 'field' },
+        el('label', { for: 'v-vaccine', text: 'Vaccin' }), name, productList,
+      ),
+      el('div', { class: 'field field-wide' },
+        el('span', { class: 'label', text: 'Protège contre' }),
+        el('div', { class: 'vacc-boxes' }, boxes),
+      ),
+      el('div', { class: 'field' },
+        el('label', { for: 'v-batch', text: 'Numéro de lot' }),
+        el('input', { class: 'input input-num', type: 'text', id: 'v-batch',
+          value: entry.batch || '' }),
+      ),
+      el('div', { class: 'field' },
+        el('label', { for: 'v-until', text: 'Valable jusqu’au' }),
+        el('input', { class: 'input', type: 'date', id: 'v-until', value: entry.valid_until || '' }),
+      ),
+      el('div', { class: 'field' },
+        el('label', { for: 'v-from', text: 'Valable depuis' }),
+        el('input', { class: 'input', type: 'date', id: 'v-from', value: entry.valid_from || '' }),
+        el('span', { class: 'hint', text: 'Rage seulement, si le carnet l’indique.' }),
+      ),
+      el('div', { class: 'field' },
+        el('label', { for: 'v-vet', text: 'Vétérinaire' }),
+        el('input', { class: 'input', type: 'text', id: 'v-vet', list: 'vacc-vets',
+          value: entry.vet || '' }),
+        vetList,
+      ),
+      el('div', { class: 'field field-wide' },
+        el('label', { for: 'v-notes', text: 'Remarque' }),
+        el('input', { class: 'input', type: 'text', id: 'v-notes',
+          placeholder: 'poids chez le véto, réaction, rappel prévu…', value: entry.notes || '' }),
+      ),
+      error,
+      el('div', { class: 'field-wide sheet-actions' },
+        editing && el('button', {
+          class: 'btn btn-danger', type: 'button', text: 'Supprimer',
+          onclick: async () => {
+            if (!confirm(`Supprimer ${shot.vaccine} du ${longDate(shot.date)} ?`)) return;
+            try {
+              await api(`/api/vaccinations/${shot.id}`, { method: 'DELETE' });
+              vaccineDialog.close();
+              toast('Vaccin supprimé.');
+              await refresh();
+            } catch (exception) { error.textContent = exception.message; }
+          },
+        }),
+        el('button', { class: 'btn', type: 'button', text: 'Annuler',
+          onclick: () => vaccineDialog.close() }),
+        el('button', { class: 'btn btn-primary', type: 'submit',
+          text: editing ? 'Enregistrer' : 'Ajouter' }),
+      ),
+    );
+
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      error.textContent = '';
+      const payload = {
+        date: $('v-date').value,
+        vaccine: name.value,
+        diseases: checked(),
+        batch: $('v-batch').value,
+        valid_from: $('v-from').value || null,
+        valid_until: $('v-until').value || null,
+        vet: $('v-vet').value,
+        notes: $('v-notes').value,
+      };
+      const button = form.querySelector('button[type="submit"]');
+      button.disabled = true;
+      try {
+        if (editing) {
+          await api(`/api/vaccinations/${shot.id}`, { method: 'PUT', body: JSON.stringify(payload) });
+        } else {
+          await api('/api/vaccinations', { method: 'POST', body: JSON.stringify(payload) });
+        }
+        vaccineDialog.close();
+        toast('Vaccin enregistré.');
+        await refresh();
+      } catch (exception) {
+        error.textContent = exception.message;
+      } finally {
+        button.disabled = false;
+      }
+    });
+
+    clear(vaccineDialog);
+    vaccineDialog.append(
+      el('div', { class: 'sheet-head' },
+        el('h2', { id: 'vacc-title', text: editing ? 'Modifier le vaccin' : 'Nouveau vaccin' }),
+        el('button', {
+          class: 'btn btn-icon', type: 'button', 'aria-label': 'Fermer',
+          onclick: () => vaccineDialog.close(),
+        }, glyph([['path', { d: 'M4 4 L12 12 M12 4 L4 12' }]], 15)),
+      ),
+      form,
+    );
+    vaccineDialog.showModal();
+  }
+
+  /* ======================================================================
      Profil
      ====================================================================== */
 
@@ -1246,6 +1492,7 @@
       form,
     ));
 
+    if (data.vaccines) view.appendChild(vaccinesCard(data.vaccines));
     if (data.reminder) view.appendChild(reminderCard(data.reminder));
   }
 
