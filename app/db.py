@@ -45,6 +45,7 @@ CREATE TABLE IF NOT EXISTS profile (
     microchip      TEXT    NOT NULL DEFAULT '',   -- 15 digits, ISO 11784
     target_weight  REAL,                          -- kg; NULL until it is set
     notes          TEXT    NOT NULL DEFAULT '',   -- allergies, vet's advice
+    photo          TEXT    NOT NULL DEFAULT '',   -- '/images/<hash>.jpg'; '' when none
     updated_at     TEXT    NOT NULL
 );
 
@@ -177,6 +178,7 @@ def cursor() -> Iterator[sqlite3.Connection]:
 # gets them here, once, with the same defaults a fresh one would have.
 _ADDED_COLUMNS: list[tuple[str, str, str]] = [
     ("profile", "microchip", "TEXT NOT NULL DEFAULT ''"),
+    ("profile", "photo", "TEXT NOT NULL DEFAULT ''"),
 ]
 
 

@@ -1,4 +1,4 @@
-"""Croquette-bag photographs on disk.
+"""Photographs on disk: croquette bags, and the dog herself.
 
 Lifted wholesale from the recipes app next door, because the rules that made
 it right there are not about recipes:
@@ -14,7 +14,8 @@ it right there are not about recipes:
 * **Names are content-addressed, so files are immutable.** The same photo
   uploaded twice is one file, and `/images/<name>` can be cached forever.
 
-* **Nothing here is authoritative.** `kibble_photos` records what is in use; a
+* **Nothing here is authoritative.** `kibble_photos` and `profile.photo`
+  record what is in use; a
   file no row points at is garbage, and `cli sweep` is what collects it. This
   module never deletes on its own — two foods can share a photo of the same
   shelf, and removing one is not a decision to throw the photograph away.
@@ -103,9 +104,16 @@ def local_name(value: str | None) -> str | None:
 
 
 def referenced() -> set[str]:
-    """Every local image name some croquette points at."""
+    """Every local image name some croquette, or the profile, points at.
+
+    Forgetting a table here is not a cosmetic bug: `cli sweep` deletes
+    whatever this leaves out.
+    """
     with db.cursor() as conn:
-        rows = conn.execute("SELECT path FROM kibble_photos").fetchall()
+        rows = conn.execute(
+            "SELECT path FROM kibble_photos "
+            "UNION SELECT photo FROM profile WHERE photo != ''"
+        ).fetchall()
     names = (local_name(row["path"]) for row in rows)
     return {name for name in names if name}
 

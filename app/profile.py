@@ -10,9 +10,9 @@ from __future__ import annotations
 
 from datetime import date, datetime
 
-from . import db
+from . import db, images
 from .config import ACTIVITY_LEVELS, SEXES
-from .errors import BadRequest
+from .errors import BadRequest, NotFound
 
 FIELDS = ("name", "breed", "birth_date", "sex", "neutered", "activity",
           "exercise", "target_weight", "microchip", "notes")
@@ -42,6 +42,7 @@ def _row_to_profile(row) -> dict:
     profile["neutered"] = bool(profile["neutered"])
     profile["sex_label"] = SEXES.get(profile["sex"], "")
     profile["age"] = _age(profile["birth_date"])
+    profile["photo"] = row["photo"]
     profile["updated_at"] = row["updated_at"]
     return profile
 
@@ -127,6 +128,31 @@ def update(payload: dict) -> dict:
     assignments = ", ".join(f"{key} = :{key}" for key in clean)
     with db.cursor() as conn:
         conn.execute(f"UPDATE profile SET {assignments} WHERE id = 1", clean)
+    return get()
+
+
+def set_photo(value) -> dict:
+    """The dog's portrait on its own, like the target: the profile form never
+    sends it, so saving the form can't wipe a photo it didn't know about.
+
+    Only a path we wrote ourselves, and only one whose file is really there —
+    a dangling portrait would render as a broken image on every screen.
+    '' removes it; the file stays on disk until `cli sweep`.
+    """
+    path = (value or "").strip()
+    if path:
+        name = images.local_name(path)
+        if name is None:
+            raise BadRequest(f"Photo inconnue : {path}")
+        try:
+            images.path_for(name)
+        except NotFound:
+            raise BadRequest(f"Photo inconnue : {path}")
+    with db.cursor() as conn:
+        conn.execute(
+            "UPDATE profile SET photo = ?, updated_at = ? WHERE id = 1",
+            (path, datetime.now().isoformat(timespec="seconds")),
+        )
     return get()
 
 

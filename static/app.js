@@ -1371,6 +1371,63 @@
      Profil
      ====================================================================== */
 
+  // The portrait saves the moment it is chosen, on its own endpoint, rather
+  // than waiting for "Enregistrer": a photo is not a field you review before
+  // committing, and the form never carrying it means saving the form can't
+  // undo one.
+  function portraitPicker(dog) {
+    const name = dog.name || 'le chien';
+    const file = el('input', { type: 'file', accept: 'image/*', hidden: true });
+    const status = el('span', { class: 'hint' });
+
+    const save = async (photo, message) => {
+      await api('/api/profile/photo', { method: 'PUT', body: JSON.stringify({ photo }) });
+      toast(message);
+      await refresh();
+    };
+
+    file.addEventListener('change', async () => {
+      const chosen = file.files && file.files[0];
+      file.value = '';
+      if (!chosen) return;
+      status.textContent = 'Envoi…';
+      try {
+        await save(await uploadPhoto(chosen), 'Photo enregistrée.');
+      } catch (error) {
+        status.textContent = '';
+        toast(error.message);
+      }
+    });
+
+    const actions = el('div', { class: 'portrait-actions' },
+      el('button', {
+        class: 'btn', type: 'button',
+        text: dog.photo ? 'Changer la photo' : 'Ajouter une photo',
+        onclick: () => file.click(),
+      }),
+      dog.photo && el('button', {
+        class: 'btn btn-danger', type: 'button', text: 'Retirer',
+        onclick: async () => {
+          if (!confirm(`Retirer la photo de ${name} ?`)) return;
+          try { await save('', 'Photo retirée.'); } catch (error) { toast(error.message); }
+        },
+      }),
+      status,
+      file,
+    );
+
+    return el('div', { class: 'portrait' },
+      dog.photo
+        ? el('a', { href: dog.photo, target: '_blank', rel: 'noopener', class: 'portrait-frame' },
+            el('img', { src: dog.photo, alt: `Photo de ${name}` }))
+        : el('button', {
+            class: 'portrait-frame portrait-empty', type: 'button',
+            'aria-label': 'Ajouter une photo', onclick: () => file.click(),
+          }, glyph(TAB_ICONS.profile, 36)),
+      actions,
+    );
+  }
+
   function renderProfile() {
     const view = $('view-profile');
     clear(view);
@@ -1489,6 +1546,7 @@
 
     view.appendChild(el('div', { class: 'card' },
       el('div', { class: 'card-head' }, el('h2', { text: 'Fiche du chien' })),
+      portraitPicker(dog),
       form,
     ));
 
@@ -1529,6 +1587,9 @@
 
     const dog = dashboard.profile;
     $('brand').textContent = dog.name || 'Carnet';
+    const avatar = $('brand-avatar');
+    avatar.hidden = !dog.photo;
+    if (dog.photo && avatar.getAttribute('src') !== dog.photo) avatar.src = dog.photo;
     $('brand-sub').textContent = dog.name ? dog.breed || '' : 'du chien';
     document.title = dog.name ? `Carnet de ${dog.name}` : 'Carnet de santé';
 

@@ -54,6 +54,10 @@ class EndpointIn(BaseModel):
     endpoint: str = ""
 
 
+class PhotoIn(BaseModel):
+    photo: str = ""
+
+
 class TargetIn(BaseModel):
     target_weight: float | str | None = None
 
@@ -144,6 +148,11 @@ def api_profile(response: Response):
 @app.put("/api/profile")
 def api_profile_update(payload: ProfileIn):
     return profile_mod.update(payload.model_dump())
+
+
+@app.put("/api/profile/photo")
+def api_set_photo(payload: PhotoIn):
+    return profile_mod.set_photo(payload.photo)
 
 
 @app.put("/api/profile/target")
@@ -312,7 +321,8 @@ def api_push_test():
 
 @app.post("/api/images", status_code=201)
 async def api_upload_image(request: Request):
-    """Take a photo as a raw body and return the path to store on a croquette.
+    """Take a photo as a raw body and return the path to store on a croquette
+    or on the profile.
 
     Raw bytes rather than a multipart form: `UploadFile` would pull in
     python-multipart, and this endpoint carries exactly one file with no other
