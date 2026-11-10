@@ -551,7 +551,7 @@
   }
 
   /** The weighing form, as a modal. Lives in a dialog rather than on the
-   *  Pesées screen because it is used once every three weeks and was taking
+   *  Pesées screen because it is used once every two weeks and was taking
    *  half the screen for the other twenty-one days. `<dialog>` is used for
    *  the real thing it gives: Escape, focus trapping and inertness for free,
    *  none of which a div pretending to be a modal gets right. */
@@ -1039,10 +1039,23 @@
         el('h2', { text: 'Rappel de pesée' }),
         el('span', {
           class: 'card-sub',
-          text: `tous les ${reminder.every_days} jours`,
+          text: reminder.every_days === 1 ? 'tous les jours' : `tous les ${reminder.every_days} jours`,
         }),
       ),
     );
+
+    // The rhythm is the hints' to set, so say when they did — otherwise a
+    // reminder that moved from 14 days to daily looks like a bug.
+    const rhythm = reminder.cadence || {};
+    card.appendChild(el('p', {
+      class: 'card-sub',
+      text: rhythm.source === 'advice'
+        ? `Rythme fixé par les conseils du ${longDate(rhythm.advice_date)}`
+          + (rhythm.until
+            ? `, jusqu’au ${longDate(rhythm.until)} ; ensuite tous les ${reminder.default_every_days} jours.`
+            : ' ; il suit les conseils de chaque nouvelle pesée.')
+        : `Rythme par défaut. Les conseils peuvent le resserrer ou l’espacer après chaque pesée.`,
+    }));
 
     card.appendChild(el('p', {
       class: 'card-sub',

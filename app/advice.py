@@ -32,6 +32,8 @@ from .config import (
     CLAUDE_MODEL,
     MAX_SAFE_LOSS_RATIO_PER_WEEK,
     ROOT,
+    WEIGH_EVERY_DAYS_RANGE,
+    WEIGH_FOR_DAYS_MAX,
 )
 from .errors import NotFound
 
@@ -61,10 +63,24 @@ Règles :
   de supposer une cause.
 - Écris en français, en tutoyant le maître. Deux phrases par conseil au maximum.
 
+Fréquence de pesée — elle règle directement les notifications de rappel :
+- `weigh_every_days` : tous les combien de jours peser le chien d'ici au
+  prochain conseil, entier de 1 à 42. Par défaut 14 pendant une perte ou une
+  prise de poids ; 21 à 42 une fois le poids de forme atteint et stable.
+- Plus serré, jusqu'à tous les jours, seulement quand c'est utile : confirmer
+  une pesée douteuse, surveiller une perte trop rapide, vérifier l'effet d'un
+  changement de croquettes. Donne alors `weigh_for_days`, la durée en jours de
+  ce rythme serré, après quoi on revient à 14 jours. Sinon, `weigh_for_days`
+  vaut null.
+- Si un conseil parle de la fréquence de pesée, il doit dire la même chose que
+  ces deux champs.
+
 Réponds UNIQUEMENT par un objet JSON, sans texte autour et sans bloc de code :
 {"summary": "une phrase sur la situation actuelle",
  "hints": [{"title": "titre court", "detail": "deux phrases au maximum"}],
- "caution": "un point de vigilance, ou null"}
+ "caution": "un point de vigilance, ou null",
+ "weigh_every_days": 14,
+ "weigh_for_days": null}
 """
 
 
@@ -174,7 +190,10 @@ def build_context(entry: dict) -> str:
 def context_hash(context: str) -> str:
     # The model name is in the digest so switching models regenerates rather
     # than silently serving the old model's answer under the new one's label.
-    return hashlib.sha256(f"{CLAUDE_MODEL}\n{context}".encode()).hexdigest()[:32]
+    # The system prompt too: an answer to different instructions — one that
+    # predates the weighing rhythm, say — is not an answer to these.
+    return hashlib.sha256(
+        f"{CLAUDE_MODEL}\n{SYSTEM_PROMPT}\n{context}".encode()).hexdigest()[:32]
 
 
 # --------------------------------------------------------------------------
@@ -207,11 +226,34 @@ def _parse(result: str) -> dict:
         raise ValueError("aucun conseil dans la réponse")
 
     caution = data.get("caution")
+    every = _days(data.get("weigh_every_days"), *WEIGH_EVERY_DAYS_RANGE)
     return {
         "summary": str(data.get("summary") or "").strip(),
         "hints": hints,
         "caution": str(caution).strip() if caution else None,
+        "weigh_every_days": every,
+        # A temporary rhythm only means something next to a rhythm.
+        "weigh_for_days": _days(data.get("weigh_for_days"), 1, WEIGH_FOR_DAYS_MAX)
+        if every else None,
     }
+
+
+def _days(value, low: int, high: int) -> int | None:
+    """A whole number of days, clamped into range — or None if the model gave
+    nothing usable. Clamped rather than refused: "peser tous les 60 jours" is
+    still a request to weigh rarely, and losing every hint over it would be
+    worse than reading it as 42."""
+    if isinstance(value, bool) or value is None:
+        return None
+    try:
+        days = int(round(float(value)))
+    except (TypeError, ValueError):
+        return None
+    # Zero or less is not "very often", it is no answer: fall back to the
+    # default rather than turn it into a daily alarm.
+    if days < 1:
+        return None
+    return max(low, min(high, days))
 
 
 def ask(context: str) -> dict:

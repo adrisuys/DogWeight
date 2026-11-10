@@ -154,7 +154,7 @@ Une fois le seuil de pesée franchi, il reste franchi tous les matins — d'où
 
 | Variable | Défaut | |
 |---|---|---|
-| `DOG_REMIND_DAYS` | `21` | délai avant rappel |
+| `DOG_REMIND_DAYS` | `14` | délai avant rappel |
 | `DOG_REMIND_REPEAT_DAYS` | `3` | délai minimum entre deux rappels |
 | `DOG_REMIND_HOUR` | `7` | heure du job (à l'installation) |
 | `DOG_VAPID_SUBJECT` | `mailto:…` | identifie l'émetteur au service de push |

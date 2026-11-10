@@ -22,7 +22,7 @@ Two guards:
 from __future__ import annotations
 
 import json
-from datetime import date
+from datetime import date, timedelta
 
 from . import db, profile as profile_mod, push, treatments, vaccines, weights
 from .config import (REMIND_EVERY_DAYS, REMIND_REPEAT_DAYS, TREATMENT_BUY_DAYS,
@@ -34,6 +34,48 @@ VACCINE_REMINDERS_KEY = "vaccine_reminders"
 TREATMENT_REMINDERS_KEY = "treatment_reminders"
 
 
+def cadence(today: date | None = None) -> dict:
+    """How often to weigh, right now, and who said so.
+
+    The latest hints that came back with a rhythm decide it; the config
+    default is only the fallback — no hints yet, hints from before the model
+    was asked, or a temporary rhythm ("tous les jours pendant 7 jours") whose
+    period has run out. The period runs from the day the hints were written,
+    and every weighing writes new hints, so in practice it is the next
+    weighing that ends it.
+    """
+    today = today or date.today()
+    default = {"every_days": REMIND_EVERY_DAYS, "source": "default",
+               "advice_date": None, "until": None}
+    with db.cursor() as conn:
+        rows = conn.execute("""
+            SELECT a.payload, a.updated_at FROM advice a
+              JOIN weights w ON w.id = a.weight_id
+             WHERE a.status = 'ready'
+          ORDER BY w.date DESC, w.id DESC
+             LIMIT 1
+        """).fetchall()
+    if not rows:
+        return default
+    try:
+        payload = json.loads(rows[0]["payload"])
+    except json.JSONDecodeError:
+        return default
+    every = payload.get("weigh_every_days")
+    if not every:
+        return default
+
+    written = date.fromisoformat(rows[0]["updated_at"][:10])
+    until = None
+    if payload.get("weigh_for_days"):
+        until = written + timedelta(days=payload["weigh_for_days"])
+        if today > until:
+            return {**default, "expired_until": until.isoformat()}
+    return {"every_days": int(every), "source": "advice",
+            "advice_date": written.isoformat(),
+            "until": until.isoformat() if until else None}
+
+
 def state() -> dict:
     """Everything the decision rests on, without making it.
 
@@ -43,9 +85,13 @@ def state() -> dict:
     entries = weights.list_entries(limit=1)
     status = push.status()
     today = date.today()
+    rhythm = cadence(today)
+    every = rhythm["every_days"]
 
     out = {
-        "every_days": REMIND_EVERY_DAYS,
+        "every_days": every,
+        "cadence": rhythm,
+        "default_every_days": REMIND_EVERY_DAYS,
         "last_weighing": entries[0]["date"] if entries else None,
         "days_since": None,
         "due": False,
@@ -70,20 +116,23 @@ def state() -> dict:
     last = date.fromisoformat(entries[0]["date"])
     out["days_since"] = (today - last).days
     out["due_date"] = last.toordinal() and date.fromordinal(
-        last.toordinal() + REMIND_EVERY_DAYS).isoformat()
-    out["due"] = out["days_since"] >= REMIND_EVERY_DAYS
+        last.toordinal() + every).isoformat()
+    out["due"] = out["days_since"] >= every
     return out
 
 
 def _message(info: dict, name: str) -> tuple[str, str]:
     who = name or "Le chien"
     days = info["days_since"]
-    weeks = round(days / 7)
-    return (
-        "Pesée à faire",
-        f"{who} n'a pas été pesée depuis {days} jours "
-        f"({weeks} semaines). Deux minutes et une balance.",
-    )
+    every = info["every_days"]
+    if every == 1:
+        rhythm = "Pesée quotidienne, comme demandé dans les derniers conseils."
+    elif info["cadence"]["source"] == "advice":
+        rhythm = f"Les conseils demandent une pesée tous les {every} jours."
+    else:
+        rhythm = "Deux minutes et une balance."
+    since = "hier" if days == 1 else f"il y a {days} jours"
+    return "Pesée à faire", f"{who} a été pesée pour la dernière fois {since}. {rhythm}"
 
 
 def run(force: bool = False) -> dict:
@@ -94,8 +143,10 @@ def run(force: bool = False) -> dict:
     if not force:
         if not info["due"]:
             return {**info, "action": "not-due"}
+        # The floor between two nudges can't be longer than the rhythm
+        # itself, or a daily weighing would only be asked for every 3 days.
         if info["days_since_reminder"] is not None \
-                and info["days_since_reminder"] < REMIND_REPEAT_DAYS:
+                and info["days_since_reminder"] < min(REMIND_REPEAT_DAYS, info["every_days"]):
             return {**info, "action": "too-soon"}
 
     if not info["subscriptions"]:

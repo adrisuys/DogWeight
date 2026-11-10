@@ -69,8 +69,18 @@ VAPID_PATH = DATA_DIR / "vapid.json"
 # URL. It identifies the sender to the push service; nothing is sent to it.
 VAPID_SUBJECT = os.environ.get("DOG_VAPID_SUBJECT", "mailto:adrien@tsc-experts.com")
 
-# How long between weighings before the reminder fires.
-REMIND_EVERY_DAYS = int(os.environ.get("DOG_REMIND_DAYS", "21"))
+# How long between weighings before the reminder fires. Two weeks: while
+# the ration is being adjusted, a point every fortnight says within a month
+# whether the change worked — the advice asks for exactly that.
+REMIND_EVERY_DAYS = int(os.environ.get("DOG_REMIND_DAYS", "14"))
+
+# That is only the default. Each set of hints carries a weighing rhythm of its
+# own — daily for a week to check a doubtful point, monthly once the target
+# holds — and the reminder follows it (see reminders.cadence). These bound
+# what the model may ask for: a typo of "0" or "365" must not switch the
+# reminder off or turn it into an alarm.
+WEIGH_EVERY_DAYS_RANGE = (1, 42)
+WEIGH_FOR_DAYS_MAX = 60
 
 # Once it is due it stays due, and the checker runs daily — so without this
 # you would be reminded every morning until you gave in. One nudge every

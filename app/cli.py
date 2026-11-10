@@ -218,6 +218,12 @@ def _remind_weighing(args) -> int:
               f"({result['days_since']} jours)")
         print(f"Prochain rappel à partir du {result['due_date']} "
               f"(tous les {result['every_days']} jours)")
+        rhythm = result["cadence"]
+        if rhythm["source"] == "advice":
+            print(f"Rythme fixé par les conseils du {rhythm['advice_date']}"
+                  + (f", jusqu'au {rhythm['until']}" if rhythm["until"] else ""))
+        else:
+            print("Rythme par défaut (les derniers conseils n'en fixent pas)")
     else:
         print("Aucune pesée enregistrée.")
     print(f"Appareils abonnés : {result['subscriptions']}")
