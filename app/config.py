@@ -151,3 +151,16 @@ VACCINE_SOON_DAYS = 30
 # because the reminder is keyed on the validity date it was about.
 VACCINE_REMIND_STAGES = (VACCINE_SOON_DAYS, 7)
 VACCINE_EXPIRED_REPEAT_DAYS = 30
+
+# --------------------------------------------------------------------------
+# Traitements (vermifuge, antipuce)
+# --------------------------------------------------------------------------
+# A week ahead, one notification to buy the next box — time to get to the
+# vet or the pharmacy — and the card turns "bientôt" from the same day, so
+# what the phone said and what the screen shows agree.
+TREATMENT_BUY_DAYS = 7
+TREATMENT_SOON_DAYS = TREATMENT_BUY_DAYS
+
+# Then the morning it is due, and again every this-many days until the dose
+# is ticked in the app. Daily: a missed tablet matters more than a nag.
+TREATMENT_REPEAT_DAYS = int(os.environ.get("DOG_TREATMENT_REPEAT_DAYS", "1"))

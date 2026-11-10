@@ -10,7 +10,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from . import (advice, db, images, kibbles, profile as profile_mod, push,
-               reminders, vaccines, weights)
+               reminders, treatments, vaccines, weights)
 from .config import ACTIVITY_LEVELS, MAX_IMAGE_BYTES, STATIC_DIR
 from .errors import BadRequest, NotFound
 
@@ -82,6 +82,18 @@ class VaccinationIn(BaseModel):
     notes: str = ""
 
 
+class TreatmentIn(BaseModel):
+    name: str = ""
+    product: str = ""
+    first_due: str = ""
+    every_months: int | str | None = None
+    notes: str = ""
+
+
+class DoseIn(BaseModel):
+    date: str | None = None
+
+
 class WeightIn(BaseModel):
     date: str = ""
     weight: float | str | None = None
@@ -132,6 +144,7 @@ def api_dashboard(response: Response):
         "activity_levels": ACTIVITY_LEVELS,
         "reminder": reminders.state(),
         "vaccines": vaccines.overview(),
+        "treatments": treatments.overview(),
     }
 
 
@@ -288,6 +301,43 @@ def api_vaccination_update(vaccination_id: int, payload: VaccinationIn):
 def api_vaccination_delete(vaccination_id: int):
     vaccines.delete_vaccination(vaccination_id)
     return {"deleted": vaccination_id}
+
+
+# --------------------------------------------------------------------------
+# Traitements
+# --------------------------------------------------------------------------
+
+@app.get("/api/treatments")
+def api_treatments(response: Response):
+    _fresh(response)
+    return treatments.overview()
+
+
+@app.post("/api/treatments", status_code=201)
+def api_treatment_create(payload: TreatmentIn):
+    return treatments.create_treatment(payload.model_dump())
+
+
+@app.put("/api/treatments/{treatment_id}")
+def api_treatment_update(treatment_id: int, payload: TreatmentIn):
+    return treatments.update_treatment(treatment_id, payload.model_dump())
+
+
+@app.delete("/api/treatments/{treatment_id}")
+def api_treatment_delete(treatment_id: int):
+    treatments.delete_treatment(treatment_id)
+    return {"deleted": treatment_id}
+
+
+@app.post("/api/treatments/{treatment_id}/doses", status_code=201)
+def api_treatment_give(treatment_id: int, payload: DoseIn):
+    return treatments.give(treatment_id, payload.date)
+
+
+@app.delete("/api/treatment-doses/{dose_id}")
+def api_treatment_dose_delete(dose_id: int):
+    treatments.delete_dose(dose_id)
+    return {"deleted": dose_id}
 
 
 # --------------------------------------------------------------------------

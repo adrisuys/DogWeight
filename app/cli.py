@@ -11,7 +11,7 @@ from datetime import date, datetime
 from pathlib import Path
 
 from . import (advice, db, images, kibbles, profile as profile_mod, push,
-               reminders, vaccines, weights)
+               reminders, treatments, vaccines, weights)
 from .config import DATA_DIR, DB_PATH, IMAGES_DIR, WEB_PORT
 from .errors import BadRequest, NotFound
 
@@ -200,7 +200,9 @@ def cmd_remind(args) -> int:
     weigh = _remind_weighing(args)
     print()
     shots = _remind_vaccines(args)
-    return weigh or shots
+    print()
+    pills = _remind_treatments(args)
+    return weigh or shots or pills
 
 
 def _remind_weighing(args) -> int:
@@ -255,6 +257,42 @@ def _remind_vaccines(args) -> int:
         return 0
 
     result = reminders.run_vaccines(force=args.force)
+    action = result["action"]
+    if action == "not-due":
+        print("→ Rien à signaler.")
+    elif action == "no-subscribers":
+        print("→ Un rappel est dû, mais aucun appareil abonné.")
+        return 1
+    else:
+        print(f"→ Envoyé à {result['sent']} appareil(s) :\n  {result['title']}")
+        for line in result["body"].splitlines():
+            print(f"  {line}")
+        for failure in result["failed"]:
+            print(f"   échec : {failure['error']}", file=sys.stderr)
+        if not result["sent"]:
+            return 1
+    return 0
+
+
+def _remind_treatments(args) -> int:
+    print("— Traitements")
+    for t in treatments.list_treatments():
+        label = t["name"] + (f" ({t['product']})" if t["product"] else "")
+        print(f"  {label:<28} prochain le {t['next_due']} ({t['days_left']:+d} j), "
+              f"tous les {t['every_months']} mois"
+              + (f", dernière prise le {t['last_dose']}" if t["last_dose"] else ""))
+    if args.dry_run:
+        due = reminders.treatment_state()
+        if not due:
+            print("→ Rien à signaler.")
+            return 0
+        title, body = reminders._treatment_message(due, profile_mod.get()["name"])
+        print(f"→ Serait envoyé (rien envoyé : --dry-run) :\n  {title}")
+        for line in body.splitlines():
+            print(f"  {line}")
+        return 0
+
+    result = reminders.run_treatments(force=args.force)
     action = result["action"]
     if action == "not-due":
         print("→ Rien à signaler.")
@@ -426,7 +464,7 @@ def main(argv: list[str] | None = None) -> int:
                         help="ajouter les vaccins d'un fichier JSON")
     p_vacc.set_defaults(func=cmd_vaccines)
 
-    p_remind = sub.add_parser("remind", help="envoyer les rappels (pesée, vaccins) s'ils sont dus")
+    p_remind = sub.add_parser("remind", help="envoyer les rappels (pesée, vaccins, traitements) s'ils sont dus")
     p_remind.add_argument("--force", action="store_true",
                           help="envoyer même si ce n'est pas dû")
     p_remind.add_argument("--dry-run", action="store_true",

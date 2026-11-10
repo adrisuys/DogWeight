@@ -24,12 +24,14 @@ from __future__ import annotations
 import json
 from datetime import date
 
-from . import db, profile as profile_mod, push, vaccines, weights
-from .config import (REMIND_EVERY_DAYS, REMIND_REPEAT_DAYS,
-                     VACCINE_EXPIRED_REPEAT_DAYS, VACCINE_REMIND_STAGES)
+from . import db, profile as profile_mod, push, treatments, vaccines, weights
+from .config import (REMIND_EVERY_DAYS, REMIND_REPEAT_DAYS, TREATMENT_BUY_DAYS,
+                     TREATMENT_REPEAT_DAYS, VACCINE_EXPIRED_REPEAT_DAYS,
+                     VACCINE_REMIND_STAGES)
 
 LAST_REMINDER_KEY = "last_reminder"
 VACCINE_REMINDERS_KEY = "vaccine_reminders"
+TREATMENT_REMINDERS_KEY = "treatment_reminders"
 
 
 def state() -> dict:
@@ -222,5 +224,101 @@ def run_vaccines(force: bool = False) -> dict:
                 sent[line["code"]] = {"until": line["valid_until"],
                                       "stage": line["stage"], "sent": today}
             db.set_meta(conn, VACCINE_REMINDERS_KEY, json.dumps(sent))
+
+    return {**out, "action": "sent", "title": title, "body": body, **result}
+
+
+# --------------------------------------------------------------------------
+# Traitements
+# --------------------------------------------------------------------------
+# Two kinds of line, sent together as one notification:
+#
+# * **buy** — once, TREATMENT_BUY_DAYS before the due date: time to get the
+#   next box. Any morning inside that week counts, so a week the Mac slept
+#   through the first day of is still caught.
+# * **give** — the morning it is due, then every TREATMENT_REPEAT_DAYS until
+#   the dose is ticked. "Due or overdue", not "due today", for the same reason.
+#
+# Both are keyed on the due date they were about. Ticking the dose moves the
+# due date, which is what silences them and arms the next cycle.
+
+def treatment_state(today: date | None = None) -> list[dict]:
+    """Treatment lines due this morning, each with its `kind`. Doesn't send."""
+    today = today or date.today()
+    with db.cursor() as conn:
+        sent = json.loads(db.get_meta(conn, TREATMENT_REMINDERS_KEY) or "{}")
+
+    due = []
+    for treatment in treatments.list_treatments(today):
+        previous = sent.get(str(treatment["id"])) or {}
+        days = treatment["days_left"]
+        if days <= 0:
+            if previous.get("due") == treatment["next_due"] and previous.get("sent") and \
+                    (today - date.fromisoformat(previous["sent"])).days < TREATMENT_REPEAT_DAYS:
+                continue
+            due.append({**treatment, "kind": "give"})
+        elif days <= TREATMENT_BUY_DAYS and previous.get("buy") != treatment["next_due"]:
+            due.append({**treatment, "kind": "buy"})
+    return due
+
+
+def _treatment_message(lines: list[dict], name: str) -> tuple[str, str]:
+    give = [line for line in lines if line["kind"] == "give"]
+    buy = [line for line in lines if line["kind"] == "buy"]
+
+    def label(line: dict) -> str:
+        return line["name"] + (f" ({line['product']})" if line["product"] else "")
+
+    rows = []
+    for line in give:
+        days = -line["days_left"]
+        if days == 0:
+            rows.append(f"{label(line)} : à donner aujourd'hui.")
+        else:
+            rows.append(f"{label(line)} : prévu le {_fr(line['next_due'])}, "
+                        f"en retard de {days} jour{'s' if days > 1 else ''}.")
+    for line in buy:
+        rows.append(f"{label(line)} : à donner le {_fr(line['next_due'])}, "
+                    f"pensez à en racheter.")
+
+    who = name or "le chien"
+    if give:
+        what = give[0]["name"] if len(give) == 1 else "Traitements"
+        title = f"{what} à donner — {who}"
+    else:
+        what = (buy[0]["product"] or buy[0]["name"]) if len(buy) == 1 else "Traitements"
+        title = f"{what} à acheter — {who}"
+    return title, "\n".join(rows)
+
+
+def run_treatments(force: bool = False) -> dict:
+    """Send the treatment reminder if one is due. Returns what it decided."""
+    if force:
+        lines = [{**t, "kind": "give" if t["days_left"] <= 0 else "buy"}
+                 for t in treatments.list_treatments()
+                 if t["days_left"] <= TREATMENT_BUY_DAYS]
+    else:
+        lines = treatment_state()
+
+    out = {"due": lines, "subscriptions": push.status()["count"]}
+    if not lines:
+        return {**out, "action": "not-due"}
+    if not out["subscriptions"]:
+        return {**out, "action": "no-subscribers"}
+
+    title, body = _treatment_message(lines, profile_mod.get()["name"])
+    result = push.send(title, body, tag="treatments", url="/#/profil")
+
+    if result["sent"]:
+        today = date.today().isoformat()
+        with db.cursor() as conn:
+            sent = json.loads(db.get_meta(conn, TREATMENT_REMINDERS_KEY) or "{}")
+            for line in lines:
+                entry = sent.setdefault(str(line["id"]), {})
+                if line["kind"] == "give":
+                    entry.update(due=line["next_due"], sent=today)
+                else:
+                    entry["buy"] = line["next_due"]
+            db.set_meta(conn, TREATMENT_REMINDERS_KEY, json.dumps(sent))
 
     return {**out, "action": "sent", "title": title, "body": body, **result}

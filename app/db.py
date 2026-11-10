@@ -145,6 +145,30 @@ CREATE TABLE IF NOT EXISTS vaccinations (
 -- The same product twice on the same day is a typo, not a double dose.
 CREATE UNIQUE INDEX IF NOT EXISTS idx_vaccinations_day ON vaccinations(date, vaccine);
 
+-- Recurring treatments: the schedule is the anchor (first due date, whose day
+-- of the month is "le 10") plus a period in months. Every later due date is
+-- derived — see treatments.py — so nothing here has to be advanced by hand.
+CREATE TABLE IF NOT EXISTS treatments (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    name          TEXT    NOT NULL UNIQUE,         -- "Vermifuge"
+    product       TEXT    NOT NULL DEFAULT '',     -- "Anthelmex"
+    first_due     TEXT    NOT NULL,                -- ISO date
+    every_months  INTEGER NOT NULL,
+    notes         TEXT    NOT NULL DEFAULT '',
+    created_at    TEXT    NOT NULL,
+    updated_at    TEXT    NOT NULL
+);
+
+-- One row per dose given. The next due date is read from the latest one, so
+-- deleting a dose ticked by mistake is the whole undo.
+CREATE TABLE IF NOT EXISTS treatment_doses (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    treatment_id  INTEGER NOT NULL REFERENCES treatments(id) ON DELETE CASCADE,
+    date          TEXT    NOT NULL,
+    created_at    TEXT    NOT NULL,
+    UNIQUE (treatment_id, date)
+);
+
 CREATE TABLE IF NOT EXISTS meta (
     key   TEXT PRIMARY KEY,
     value TEXT

@@ -7,7 +7,7 @@
      #/            le tableau de bord : les chiffres, les deux courbes, les conseils
      #/pesees      toutes les pesées, en tableau — et le formulaire d'ajout
      #/croquettes  les types de croquettes, avec photos du sac
-     #/profil      la fiche du chien, le poids de forme et les vaccins
+     #/profil      la fiche du chien, les traitements et les vaccins
 
    Nothing is templated on the server and the DOM is built with `el()` rather
    than innerHTML: a brand name, a note and a hint from the model are all user
@@ -1122,6 +1122,221 @@
   }
 
   /* ======================================================================
+     Traitements
+     ====================================================================== */
+
+  // Vermifuge, antipuce: a fixed calendar ("le 26, tous les mois") and a log
+  // of doses. The card answers "when is the next one?" and the one button
+  // that matters is "Donné" — ticking it is what moves the next date on and
+  // silences the morning notification.
+  const TREAT_STATE = {
+    ok: { text: 'à jour', cls: 'is-good' },
+    soon: { text: 'bientôt', cls: 'is-warn' },
+    due: { text: 'aujourd’hui', cls: 'is-warn' },
+    overdue: { text: 'en retard', cls: 'is-bad' },
+  };
+
+  const everyText = (t) => t.every_months === 1
+    ? `le ${t.day_of_month} de chaque mois`
+    : `le ${t.day_of_month}, tous les ${t.every_months} mois`;
+
+  function treatmentDueText(t) {
+    const days = t.days_left;
+    if (days < 0) return `prévu le ${longDate(t.next_due)}, en retard de ${-days} j`;
+    if (days === 0) return 'à donner aujourd’hui';
+    if (days === 1) return `demain, ${longDate(t.next_due)}`;
+    return `prochain le ${longDate(t.next_due)} (dans ${days} j)`;
+  }
+
+  async function giveDose(t, date) {
+    try {
+      const updated = await api(`/api/treatments/${t.id}/doses`, {
+        method: 'POST', body: JSON.stringify({ date: date || null }),
+      });
+      toast(`${t.name} noté. Prochain le ${longDate(updated.next_due)}.`);
+      await refresh();
+    } catch (exception) { toast(exception.message); }
+  }
+
+  function treatmentLine(t) {
+    const meta = TREAT_STATE[t.state];
+    const title = t.name + (t.product ? ` · ${t.product}` : '');
+    const past = el('input', { class: 'input', type: 'date', max: today(), value: today(),
+      'aria-label': `Date de la prise de ${t.name}` });
+
+    return el('li', { class: 'treat' },
+      el('div', { class: 'treat-head' },
+        el('button', {
+          class: 'treat-name', type: 'button', text: title,
+          'aria-label': `Modifier ${t.name}`, onclick: () => openTreatmentDialog(t),
+        }),
+        el('span', { class: `badge ${meta.cls}`, text: meta.text }),
+      ),
+      el('span', { class: 'treat-when', text: treatmentDueText(t) }),
+      el('span', { class: 'treat-meta', text: everyText(t)
+        + (t.last_dose ? ` · dernière prise le ${longDate(t.last_dose)}` : '') }),
+      el('div', { class: 'treat-actions' },
+        el('button', {
+          class: `btn btn-sm${t.days_left <= 0 ? ' btn-primary' : ''}`, type: 'button',
+          text: 'Donné aujourd’hui', onclick: () => giveDose(t),
+        }),
+      ),
+      el('details', { class: 'vacc-history' },
+        el('summary', { text: t.doses.length
+          ? `Historique (${t.doses.length} prise${t.doses.length > 1 ? 's' : ''})`
+          : 'Noter une prise passée' }),
+        el('div', { class: 'treat-past' },
+          past,
+          el('button', { class: 'btn btn-sm', type: 'button', text: 'Ajouter',
+            onclick: () => past.value && giveDose(t, past.value) }),
+        ),
+        t.doses.length ? el('ul', { class: 'treat-doses' }, t.doses.map((dose) => el('li', {},
+          el('span', { text: longDate(dose.date) }),
+          el('button', {
+            class: 'photo-remove treat-remove', type: 'button', text: '×',
+            'aria-label': `Supprimer la prise du ${longDate(dose.date)}`,
+            onclick: async () => {
+              if (!confirm(`Supprimer la prise de ${t.name} du ${longDate(dose.date)} ?`)) return;
+              try {
+                await api(`/api/treatment-doses/${dose.id}`, { method: 'DELETE' });
+                toast('Prise supprimée.');
+                await refresh();
+              } catch (exception) { toast(exception.message); }
+            },
+          }),
+        ))) : null,
+      ),
+    );
+  }
+
+  function treatmentsCard(data) {
+    const list = data.treatments;
+    const card = el('div', { class: 'card', id: 'treatments' },
+      el('div', { class: 'card-head' },
+        el('h2', { text: 'Traitements' }),
+        el('button', {
+          class: 'btn btn-primary btn-sm', type: 'button', text: 'Ajouter',
+          onclick: () => openTreatmentDialog(null),
+        }),
+      ),
+    );
+    if (!list.length) {
+      card.appendChild(el('p', { class: 'empty-note',
+        text: 'Aucun traitement. Ajoutez le vermifuge ou l’antipuce pour être prévenu le jour venu.' }));
+      return card;
+    }
+    card.appendChild(el('ul', { class: 'treats' }, list.map(treatmentLine)));
+    card.appendChild(el('p', { class: 'card-sub',
+      text: 'Notification à 7 h : une semaine avant pour racheter le produit, puis le jour prévu '
+        + 'et chaque matin tant que la prise n’est pas notée.' }));
+    return card;
+  }
+
+  let treatmentDialog = null;
+
+  function openTreatmentDialog(t) {
+    if (!treatmentDialog) {
+      treatmentDialog = el('dialog', { class: 'sheet', 'aria-labelledby': 'treat-title' });
+      treatmentDialog.addEventListener('click', (event) => {
+        if (event.target === treatmentDialog) treatmentDialog.close();
+      });
+      document.body.appendChild(treatmentDialog);
+    }
+    const editing = !!t;
+    const entry = t || { every_months: 1, first_due: today() };
+    const error = el('p', { class: 'form-error field-wide' });
+
+    const form = el('form', { class: 'form-grid', autocomplete: 'off' },
+      el('div', { class: 'field' },
+        el('label', { for: 't-name', text: 'Traitement' }),
+        el('input', { class: 'input', type: 'text', id: 't-name', required: true,
+          list: 'treat-names', placeholder: 'Vermifuge', value: entry.name || '' }),
+        el('datalist', { id: 'treat-names' },
+          ['Vermifuge', 'Antipuce', 'Antiparasitaire'].map((v) => el('option', { value: v }))),
+      ),
+      el('div', { class: 'field' },
+        el('label', { for: 't-product', text: 'Produit' }),
+        el('input', { class: 'input', type: 'text', id: 't-product',
+          placeholder: 'Nexgard', value: entry.product || '' }),
+      ),
+      el('div', { class: 'field' },
+        el('label', { for: 't-first', text: editing ? 'Calé sur le' : 'Prochaine fois' }),
+        el('input', { class: 'input', type: 'date', id: 't-first', required: true,
+          value: entry.first_due || '' }),
+        el('span', { class: 'hint', text: 'Fixe aussi le jour du mois des suivantes.' }),
+      ),
+      el('div', { class: 'field' },
+        el('label', { for: 't-every', text: 'Tous les (mois)' }),
+        el('input', { class: 'input input-num', type: 'number', id: 't-every', required: true,
+          min: '1', max: '24', step: '1', inputMode: 'numeric', value: entry.every_months }),
+      ),
+      el('div', { class: 'field field-wide' },
+        el('label', { for: 't-notes', text: 'Remarque' }),
+        el('input', { class: 'input', type: 'text', id: 't-notes',
+          placeholder: 'dosage, à donner pendant le repas…', value: entry.notes || '' }),
+      ),
+      error,
+      el('div', { class: 'field-wide sheet-actions' },
+        editing && el('button', {
+          class: 'btn btn-danger', type: 'button', text: 'Supprimer',
+          onclick: async () => {
+            if (!confirm(`Supprimer ${t.name} et son historique ?`)) return;
+            try {
+              await api(`/api/treatments/${t.id}`, { method: 'DELETE' });
+              treatmentDialog.close();
+              toast('Traitement supprimé.');
+              await refresh();
+            } catch (exception) { error.textContent = exception.message; }
+          },
+        }),
+        el('button', { class: 'btn', type: 'button', text: 'Annuler',
+          onclick: () => treatmentDialog.close() }),
+        el('button', { class: 'btn btn-primary', type: 'submit',
+          text: editing ? 'Enregistrer' : 'Ajouter' }),
+      ),
+    );
+
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      error.textContent = '';
+      const payload = {
+        name: $('t-name').value,
+        product: $('t-product').value,
+        first_due: $('t-first').value,
+        every_months: $('t-every').value,
+        notes: $('t-notes').value,
+      };
+      const button = form.querySelector('button[type="submit"]');
+      button.disabled = true;
+      try {
+        await api(editing ? `/api/treatments/${t.id}` : '/api/treatments', {
+          method: editing ? 'PUT' : 'POST', body: JSON.stringify(payload),
+        });
+        treatmentDialog.close();
+        toast('Traitement enregistré.');
+        await refresh();
+      } catch (exception) {
+        error.textContent = exception.message;
+      } finally {
+        button.disabled = false;
+      }
+    });
+
+    clear(treatmentDialog);
+    treatmentDialog.append(
+      el('div', { class: 'sheet-head' },
+        el('h2', { id: 'treat-title', text: editing ? 'Modifier le traitement' : 'Nouveau traitement' }),
+        el('button', {
+          class: 'btn btn-icon', type: 'button', 'aria-label': 'Fermer',
+          onclick: () => treatmentDialog.close(),
+        }, glyph([['path', { d: 'M4 4 L12 12 M12 4 L4 12' }]], 15)),
+      ),
+      form,
+    );
+    treatmentDialog.showModal();
+  }
+
+  /* ======================================================================
      Vaccins
      ====================================================================== */
 
@@ -1550,6 +1765,7 @@
       form,
     ));
 
+    if (data.treatments) view.appendChild(treatmentsCard(data.treatments));
     if (data.vaccines) view.appendChild(vaccinesCard(data.vaccines));
     if (data.reminder) view.appendChild(reminderCard(data.reminder));
   }
