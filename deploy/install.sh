@@ -1,7 +1,7 @@
 #!/bin/bash
 # Install the two launchd jobs:
 #   * the web server (restarted on crash and on login)
-#   * the daily reminder check (weigh-in and vaccines)
+#   * the daily reminder check (weigh-in, vaccines, treatments), at 7:00
 #
 #   ./deploy/install.sh          install / reinstall
 #   ./deploy/install.sh remove   uninstall
@@ -24,7 +24,7 @@ AGENTS_DIR="$HOME/Library/LaunchAgents"
 PYTHON="$APP_DIR/venv/bin/python"
 WEB_LABEL="com.dogmanagement.web"
 REMIND_LABEL="com.dogmanagement.remind"
-REMIND_HOUR="${DOG_REMIND_HOUR:-9}"
+REMIND_HOUR="${DOG_REMIND_HOUR:-7}"
 PORT="${DOG_PORT:-8760}"
 UID_NUM="$(id -u)"
 MODE="${1:-install}"
@@ -35,6 +35,13 @@ fi
 
 unload() {
   launchctl bootout "gui/$UID_NUM/$1" 2>/dev/null || true
+  # bootout returns before the job is gone. Bootstrapping it again while the
+  # old one is still shutting down fails with "5: Input/output error" and
+  # leaves the job unloaded — the web server down — so wait it out.
+  for _ in $(seq 1 50); do
+    launchctl print "gui/$UID_NUM/$1" > /dev/null 2>&1 || return 0
+    sleep 0.2
+  done
 }
 
 if [ "$MODE" = "remove" ]; then
