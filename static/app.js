@@ -1784,6 +1784,141 @@
   }
 
   /* ======================================================================
+     La cloche : ce qui reste à faire
+     ====================================================================== */
+
+  // The list comes from the server with the dashboard and is never edited
+  // here: an item goes away because its action changed the data (a dose
+  // ticked, a booster entered, a weighing saved) and the refresh that
+  // follows no longer finds it. "Acheté" is the one explicit tick.
+  let bellDialog = null;
+
+  const inDays = (n) => (n === 0 ? 'aujourd’hui' : n === 1 ? 'demain' : `dans ${n} j`);
+  const lateBy = (n) => `en retard de ${n} jour${n > 1 ? 's' : ''}`;
+
+  function todoText(item) {
+    const what = item.name + (item.product ? ` (${item.product})` : '');
+    switch (item.kind) {
+      case 'give':
+        return {
+          title: `Donner : ${what}`,
+          detail: item.days_left === 0
+            ? 'Prévu aujourd’hui.'
+            : `Prévu le ${longDate(item.date)}, ${lateBy(-item.days_left)}.`,
+        };
+      case 'buy':
+        return {
+          title: `Acheter : ${item.product || item.name}`,
+          detail: `${item.name} à donner le ${longDate(item.date)} (${inDays(item.days_left)}).`,
+        };
+      case 'vaccine':
+        return {
+          title: item.days_left < 0 ? 'Vaccin expiré' : 'Vaccin à refaire',
+          detail: `${item.diseases.join(', ')} : `
+            + (item.days_left < 0
+              ? `expiré depuis le ${longDate(item.date)}.`
+              : `jusqu’au ${longDate(item.date)} (${inDays(item.days_left)}).`),
+        };
+      case 'weigh':
+        return {
+          title: `Peser ${item.name || 'le chien'}`,
+          detail: `Dernière pesée il y a ${item.days_since} jours ; rythme actuel : `
+            + (item.every_days === 1 ? 'tous les jours.' : `tous les ${item.every_days} jours.`),
+        };
+      default:
+        return { title: item.kind, detail: '' };
+    }
+  }
+
+  async function todoAction(path, options, message) {
+    try {
+      await api(path, options);
+      toast(message);
+      await refresh();
+      if (bellDialog && bellDialog.open) paintBell();
+    } catch (exception) { toast(exception.message); }
+  }
+
+  function todoButtons(item) {
+    const t = { id: item.treatment_id, name: item.name };
+    const close = () => bellDialog.close();
+    switch (item.kind) {
+      case 'give':
+        return [el('button', { class: 'btn btn-primary btn-sm', type: 'button', text: 'Donné',
+          onclick: () => todoAction(`/api/treatments/${t.id}/doses`,
+            { method: 'POST', body: JSON.stringify({}) }, `${t.name} noté.`) })];
+      case 'buy':
+        return [el('button', { class: 'btn btn-sm', type: 'button', text: 'Acheté',
+          onclick: () => todoAction(`/api/treatments/${t.id}/bought`,
+            { method: 'POST' }, `${item.product || item.name} : acheté.`) })];
+      case 'vaccine':
+        return [el('button', { class: 'btn btn-sm', type: 'button', text: 'Noter le rappel',
+          onclick: () => { close(); openVaccineDialog(null); } })];
+      case 'weigh':
+        return [el('button', { class: 'btn btn-primary btn-sm', type: 'button', text: 'Peser',
+          onclick: () => { close(); openWeighDialog(null); } })];
+      default:
+        return [];
+    }
+  }
+
+  function paintBellButton(todos) {
+    const count = $('bell-count');
+    const button = $('bell-btn');
+    const urgent = todos.some((item) => item.level === 'bad' || item.level === 'warn');
+    count.hidden = !todos.length;
+    count.textContent = todos.length > 9 ? '9+' : String(todos.length);
+    count.classList.toggle('is-warn', !todos.some((item) => item.level === 'bad'));
+    button.classList.toggle('has-todos', urgent || todos.length > 0);
+    button.setAttribute('aria-label', todos.length
+      ? `À faire : ${todos.length} élément${todos.length > 1 ? 's' : ''}` : 'À faire : rien');
+    // The home-screen icon too, where the installed app supports it.
+    if ('setAppBadge' in navigator) {
+      (todos.length ? navigator.setAppBadge(todos.length) : navigator.clearAppBadge())
+        .catch(() => {});
+    }
+  }
+
+  function paintBell() {
+    const todos = (state.dashboard && state.dashboard.todos) || [];
+    clear(bellDialog);
+    bellDialog.append(
+      el('div', { class: 'sheet-head' },
+        el('h2', { id: 'bell-title', text: 'À faire' }),
+        el('button', {
+          class: 'btn btn-icon', type: 'button', 'aria-label': 'Fermer',
+          onclick: () => bellDialog.close(),
+        }, glyph([['path', { d: 'M4 4 L12 12 M12 4 L4 12' }]], 15)),
+      ),
+      todos.length
+        ? el('ul', { class: 'todos' }, todos.map((item) => {
+          const text = todoText(item);
+          return el('li', { class: `todo is-${item.level}` },
+            el('span', { class: 'todo-mark', 'aria-hidden': 'true' }),
+            el('div', { class: 'todo-text' },
+              el('span', { class: 'todo-title', text: text.title }),
+              el('span', { class: 'todo-detail', text: text.detail }),
+            ),
+            el('div', { class: 'todo-actions' }, todoButtons(item)),
+          );
+        }))
+        : el('p', { class: 'todos-empty', text: 'Rien à faire : traitements, vaccins et pesée sont à jour.' }),
+    );
+  }
+
+  function openBell() {
+    if (!bellDialog) {
+      bellDialog = el('dialog', { class: 'sheet', 'aria-labelledby': 'bell-title' });
+      bellDialog.addEventListener('click', (event) => {
+        if (event.target === bellDialog) bellDialog.close();
+      });
+      document.body.appendChild(bellDialog);
+    }
+    paintBell();
+    bellDialog.showModal();
+  }
+
+  /* ======================================================================
      Routing and loading
      ====================================================================== */
 
@@ -1816,6 +1951,7 @@
 
     const dog = dashboard.profile;
     $('brand').textContent = dog.name || 'Carnet';
+    paintBellButton(dashboard.todos || []);
     const avatar = $('brand-avatar');
     avatar.hidden = !dog.photo;
     if (dog.photo && avatar.getAttribute('src') !== dog.photo) avatar.src = dog.photo;
@@ -1837,6 +1973,20 @@
   // Weighing is the one thing you do from anywhere, so it no longer navigates
   // — it opens over whatever screen you were on and leaves you there.
   $('new-btn').addEventListener('click', () => openWeighDialog(null));
+  $('bell-btn').addEventListener('click', openBell);
+
+  // An installed app comes back from the background without reloading, and
+  // the list is a function of today's date: a dose due this morning must show
+  // up without having to pull to refresh. Only the bell is refetched — a full
+  // refresh re-renders the screen and would wipe a half-typed form.
+  document.addEventListener('visibilitychange', async () => {
+    if (document.visibilityState !== 'visible' || !state.dashboard) return;
+    try {
+      state.dashboard.todos = (await api('/api/todos')).todos;
+      paintBellButton(state.dashboard.todos);
+      if (bellDialog && bellDialog.open) paintBell();
+    } catch (error) { /* offline: keep the last list */ }
+  });
 
   buildNav();
   refresh().catch((error) => {

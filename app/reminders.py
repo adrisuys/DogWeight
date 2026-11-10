@@ -298,6 +298,8 @@ def treatment_state(today: date | None = None) -> list[dict]:
     today = today or date.today()
     with db.cursor() as conn:
         sent = json.loads(db.get_meta(conn, TREATMENT_REMINDERS_KEY) or "{}")
+        # Ticked "acheté" in the bell before the week began: nothing to say.
+        bought = json.loads(db.get_meta(conn, "treatment_bought") or "{}")
 
     due = []
     for treatment in treatments.list_treatments(today):
@@ -308,7 +310,8 @@ def treatment_state(today: date | None = None) -> list[dict]:
                     (today - date.fromisoformat(previous["sent"])).days < TREATMENT_REPEAT_DAYS:
                 continue
             due.append({**treatment, "kind": "give"})
-        elif days <= TREATMENT_BUY_DAYS and previous.get("buy") != treatment["next_due"]:
+        elif days <= TREATMENT_BUY_DAYS and previous.get("buy") != treatment["next_due"] \
+                and bought.get(str(treatment["id"])) != treatment["next_due"]:
             due.append({**treatment, "kind": "buy"})
     return due
 

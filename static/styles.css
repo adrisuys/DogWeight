@@ -170,6 +170,39 @@ a { color: var(--accent); }
 .brand-avatar[hidden] { display: none; }
 .topbar-actions { display: flex; align-items: center; gap: 8px; margin-left: auto; }
 
+/* --- bell (à faire) ------------------------------------------------------ */
+
+.bell { position: relative; color: var(--text-secondary); }
+.bell.has-todos { color: var(--text-primary); }
+.bell-count {
+  position: absolute; top: -5px; right: -5px;
+  min-width: 17px; height: 17px; padding: 0 4px;
+  border-radius: 9px;
+  background: var(--bad); color: #fff;
+  font-size: 10.5px; font-weight: 700; line-height: 17px; text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.bell-count.is-warn { background: var(--warn); color: #111; }
+.bell-count[hidden] { display: none; }
+
+.todos { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.todo {
+  display: grid;
+  grid-template-columns: 4px minmax(0, 1fr) auto;
+  column-gap: 12px; align-items: center;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--grid);
+}
+.todo:last-child { border-bottom: 0; }
+.todo-mark { align-self: stretch; border-radius: 2px; background: var(--accent); }
+.todo.is-bad .todo-mark { background: var(--bad); }
+.todo.is-warn .todo-mark { background: var(--warn); }
+.todo-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.todo-title { font-weight: 600; font-size: 14px; }
+.todo-detail { font-size: 12.5px; color: var(--text-muted); }
+.todo-actions { display: flex; gap: 6px; }
+.todos-empty { margin: 4px 0 8px; color: var(--text-muted); font-size: 14px; }
+
 /* --- controls ----------------------------------------------------------- */
 
 .btn {

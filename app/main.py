@@ -10,7 +10,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from . import (advice, db, images, kibbles, profile as profile_mod, push,
-               reminders, treatments, vaccines, weights)
+               reminders, todos, treatments, vaccines, weights)
 from .config import ACTIVITY_LEVELS, MAX_IMAGE_BYTES, STATIC_DIR
 from .errors import BadRequest, NotFound
 
@@ -145,6 +145,7 @@ def api_dashboard(response: Response):
         "reminder": reminders.state(),
         "vaccines": vaccines.overview(),
         "treatments": treatments.overview(),
+        "todos": todos.build(),
     }
 
 
@@ -332,6 +333,24 @@ def api_treatment_delete(treatment_id: int):
 @app.post("/api/treatments/{treatment_id}/doses", status_code=201)
 def api_treatment_give(treatment_id: int, payload: DoseIn):
     return treatments.give(treatment_id, payload.date)
+
+
+@app.post("/api/treatments/{treatment_id}/bought")
+def api_treatment_bought(treatment_id: int):
+    """"Acheté", from the bell: the one to-do the data can't see done."""
+    return todos.mark_bought(treatment_id)
+
+
+@app.delete("/api/treatments/{treatment_id}/bought")
+def api_treatment_unbought(treatment_id: int):
+    todos.unmark_bought(treatment_id)
+    return {"bought": None}
+
+
+@app.get("/api/todos")
+def api_todos(response: Response):
+    _fresh(response)
+    return {"todos": todos.build()}
 
 
 @app.delete("/api/treatment-doses/{dose_id}")

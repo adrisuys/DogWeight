@@ -19,6 +19,16 @@
 
 <header class="topbar">
   <div class="topbar-lead">
+    <!-- The bell: what needs doing now. Filled in by app.js from the
+         dashboard's `todos`; the count disappears with the last item. -->
+    <button type="button" id="bell-btn" class="btn btn-icon bell" aria-label="À faire">
+      <svg viewBox="0 0 16 16" width="17" height="17" aria-hidden="true" fill="none"
+           stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M4 11.5V7a4 4 0 0 1 8 0v4.5l1.2 1.3H2.8Z"/>
+        <path d="M6.6 14.2a1.5 1.5 0 0 0 2.8 0"/>
+      </svg>
+      <span class="bell-count" id="bell-count" hidden></span>
+    </button>
     <img class="brand-avatar" id="brand-avatar" alt="" hidden>
     <h1 class="brand" id="brand">Carnet</h1>
     <span class="brand-sub" id="brand-sub"></span>
