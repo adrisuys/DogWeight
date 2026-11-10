@@ -222,8 +222,15 @@ def api_weight_update(entry_id: int, payload: WeightIn, background: BackgroundTa
 
 
 @app.delete("/api/weights/{entry_id}")
-def api_weight_delete(entry_id: int):
+def api_weight_delete(entry_id: int, background: BackgroundTasks):
+    """Deleting a weighing changes the history the latest hints were written
+    from — typically a mis-weighing they warned about — so those hints are
+    regenerated, or the dashboard keeps quoting a point that is gone."""
     weights.delete_entry(entry_id)
+    latest = weights.list_entries(limit=1)
+    if latest:
+        advice.mark_pending(latest[0]["id"])
+        background.add_task(advice.generate, latest[0]["id"])
     return {"deleted": entry_id}
 
 
