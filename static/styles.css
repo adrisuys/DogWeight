@@ -45,8 +45,8 @@
   --warn:            #8a5a00;
   --bad:             #c0281f;
 
-  --radius: 10px;
-  --shadow: 0 1px 2px rgba(16, 21, 26, 0.05);
+  --radius: 20px;
+  --shadow: 0 1px 2px rgba(16, 21, 26, 0.05), 0 6px 18px -12px rgba(16, 21, 26, 0.22);
 
   /* How far below the safe-area inset the top bar's content starts in the
      installed iOS app, to clear iOS 27's blur band. Same value as the other
@@ -78,7 +78,7 @@
     --warn:           #f0b429;
     --bad:            #f08080;
 
-    --shadow: none;
+    --shadow: 0 0 0 1px var(--border);
   }
 }
 
@@ -107,7 +107,7 @@
   --warn:           #f0b429;
   --bad:            #f08080;
 
-  --shadow: none;
+  --shadow: 0 0 0 1px var(--border);
 }
 
 /* ========================================================================== */
@@ -120,10 +120,20 @@
 
 html, body { margin: 0; padding: 0; }
 
+/* Self-hosted, latin subset, 27 kB. Not a CDN link: the service worker
+   precaches it (see sw.js), so the app keeps its own type offline. */
+@font-face {
+  font-family: "Jakarta";
+  src: url("/jakarta.woff2") format("woff2");
+  font-weight: 200 800;
+  font-display: swap;
+}
+
 body {
   background: var(--page);
   color: var(--text-primary);
-  font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+  font: 15px/1.55 "Jakarta", system-ui, -apple-system, "Segoe UI", sans-serif;
+  letter-spacing: -0.005em;
   -webkit-font-smoothing: antialiased;
   padding-bottom: env(safe-area-inset-bottom);
   padding-top: var(--topbar-h, 59px);
@@ -131,8 +141,8 @@ body {
 
 html { scroll-padding-top: var(--topbar-h, 59px); }
 
-h1, h2, h3 { margin: 0; font-weight: 600; letter-spacing: -0.01em; }
-h2 { font-size: 17px; }
+h1, h2, h3 { margin: 0; font-weight: 600; letter-spacing: -0.02em; }
+h2 { font-size: 18px; font-weight: 700; }
 h3 { font-size: 14px; }
 
 a { color: var(--accent); }
@@ -210,11 +220,11 @@ a { color: var(--accent); }
   font-size: 13px;
   font-weight: 500;
   color: var(--text-primary);
-  background: var(--surface-1);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 6px 12px;
-  min-height: 32px;
+  background: var(--surface-2);
+  border: 1px solid transparent;
+  border-radius: 999px;
+  padding: 7px 14px;
+  min-height: 34px;
   cursor: pointer;
   white-space: nowrap;
 }
@@ -228,10 +238,10 @@ a { color: var(--accent); }
 
 .segmented {
   display: inline-flex;
-  background: var(--surface-1);
-  border: 1px solid var(--border);
-  border-radius: 9px;
-  padding: 2px;
+  background: var(--surface-2);
+  border: 0;
+  border-radius: 999px;
+  padding: 4px;
   gap: 2px;
   flex-wrap: wrap;
 }
@@ -322,13 +332,13 @@ main { max-width: 1040px; margin: 0 auto; padding: 18px; }
 
 .card {
   background: var(--surface-1);
-  border: 1px solid var(--border);
+  border: 0;
   border-radius: var(--radius);
   box-shadow: var(--shadow);
-  padding: 16px 18px 18px;
+  padding: 20px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 16px;
   min-width: 0;
 }
 .card-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
@@ -352,19 +362,15 @@ main { max-width: 1040px; margin: 0 auto; padding: 18px; }
 
 .tiles {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-  gap: 1px;
-  background: var(--border);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  overflow: hidden;
+  grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
+  gap: 10px;
 }
-.tile { background: var(--surface-1); padding: 14px 16px; display: flex; flex-direction: column; gap: 3px; }
+.tile { background: var(--surface-2); border-radius: 16px; padding: 15px;
+        display: flex; flex-direction: column; gap: 3px; }
 .tile-label {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 500;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  letter-spacing: -0.005em;
   color: var(--text-muted);
 }
 .tile-value { font-size: 20px; font-weight: 600; letter-spacing: -0.02em; }

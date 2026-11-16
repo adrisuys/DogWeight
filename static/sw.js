@@ -12,12 +12,12 @@
      names are content hashes and can never mean anything else.
    ========================================================================== */
 
-const VERSION = 'dog-v18';
+const VERSION = 'dog-v19';
 const SHELL = `${VERSION}-shell`;
 const PHOTOS = `${VERSION}-photos`;
 
 const SHELL_FILES = [
-  '/', '/index.html', '/styles.css', '/app.js', '/charts.js',
+  '/', '/index.html', '/styles.css', '/app.js', '/charts.js', '/jakarta.woff2',
   '/manifest.webmanifest',
   '/icons/icon-192.png', '/icons/icon-512.png', '/icons/icon-180.png',
 ];
